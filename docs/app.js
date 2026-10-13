@@ -14,7 +14,7 @@ function checkpointTiming(){
   if(!timedKey||timingStarted===null)return;
   const now=performance.now();
   const r=box.state.records[timedKey];
-  if(r){r.responseTimeMs=elapsed(r.responseTimeMs,timingStarted,now);r.timingVersion=1;}
+  if(r?.timingVersion===1)r.responseTimeMs=elapsed(r.responseTimeMs,timingStarted,now);
   timingStarted=now;
 }
 const preview = new URLSearchParams(location.search).get('preview')==='1';
@@ -43,7 +43,7 @@ function value() { return record()?.value ?? null; }
 function setValue(v) {
   const c=current();
   const old=box.state.records[c.key],started=timingStarted;checkpointTiming();
-  const ms=old?.responseTimeMs??(started===null?0:elapsed(0,started,performance.now()));
+  const ms=old?.timingVersion===1?old.responseTimeMs:(started===null?0:elapsed(0,started,performance.now()));
   box.state.records[c.key]={value:v,submitted:false,updatedAt:new Date().toISOString(),responseTimeMs:ms,timingVersion:1};
   timingStarted=document.hidden?null:performance.now();
   changed(); render();
@@ -193,7 +193,9 @@ async function start() {
   ready=true;persist();render();status();startTiming();
   $('next').onclick=()=>{
     const c=current();if(!validAnswer(c.q,value()))return;
+    const started=timingStarted;
     checkpointTiming();
+    if(box.state.records[c.key].timingVersion!==1){box.state.records[c.key].responseTimeMs=started===null?0:elapsed(0,started,performance.now());box.state.records[c.key].timingVersion=1;}
     box.state.records[c.key].submitted=true;box.state.records[c.key].updatedAt=new Date().toISOString();
     if(!changed()){render();return;}
     const total=study.stimuli.length*study.questions.length;
