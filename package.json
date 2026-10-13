@@ -4,6 +4,7 @@
   "type": "module",
   "scripts": {
     "test": "node --test tests/*.test.js",
-    "preview": "node tools/serve.js"
+    "preview": "node tools/serve.js",
+    "export": "node tools/export-results.mjs"
   }
 }

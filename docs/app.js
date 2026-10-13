@@ -2,11 +2,21 @@ import {API_URL,STIMULUS_SET} from './config.js';
 import {SETS,selectSet} from './sets.js';
 import {parseFen,recordKey,validAnswer,clickPair,toPairs,emptyState,validateState,completedCount,firstIncomplete,exportRows} from './core.js';
 import {pieceSvg} from './pieces.js?v=reference-art-1';
+import {elapsed} from './timing.js';
 const $ = id => document.getElementById(id);
 const colors = ['#b64a27','#315cbb','#873fb0','#197663','#b07110','#b43875'];
 const names = {p:'gyalog',n:'huszár',b:'futó',r:'bástya',q:'vezér',k:'király'};
 let study, box, key, selectedSet, syncing=false, conflict=false, timer, storageFailed=false, ready=false;
 let lock;
+let timedKey=null,timingStarted=null;
+function startTiming(){const c=current();timedKey=c.key;timingStarted=c.key&&!document.hidden?performance.now():null;}
+function checkpointTiming(){
+  if(!timedKey||timingStarted===null)return;
+  const now=performance.now();
+  const r=box.state.records[timedKey];
+  if(r){r.responseTimeMs=elapsed(r.responseTimeMs,timingStarted,now);r.timingVersion=1;}
+  timingStarted=now;
+}
 const preview = new URLSearchParams(location.search).get('preview')==='1';
 const api = preview ? '' : API_URL.replace(/\/$/,'');
 const error = message => { $('error').textContent=message; $('error').hidden=!message; };
@@ -32,7 +42,10 @@ function record() { const c=current(); return box.state.records[c.key]; }
 function value() { return record()?.value ?? null; }
 function setValue(v) {
   const c=current();
-  box.state.records[c.key]={value:v,submitted:false,updatedAt:new Date().toISOString()};
+  const old=box.state.records[c.key],started=timingStarted;checkpointTiming();
+  const ms=old?.responseTimeMs??(started===null?0:elapsed(0,started,performance.now()));
+  box.state.records[c.key]={value:v,submitted:false,updatedAt:new Date().toISOString(),responseTimeMs:ms,timingVersion:1};
+  timingStarted=document.hidden?null:performance.now();
   changed(); render();
 }
 function renderBoard(s,q) {
@@ -72,6 +85,7 @@ function render() {
   const total=study.stimuli.length*study.questions.length,done=completedCount(box.state);
   $('progress').max=total;$('progress').value=done;$('total-count').textContent=`${done} / ${total} válasz`;
   const c=current(),finished=!c.s;
+  if(ready&&timedKey!==c.key)startTiming();
   $('survey').hidden=finished;$('complete').hidden=!finished;
   $('position-count').textContent=`${preview?'Előnézet · ':''}${SETS[selectedSet].label} · `+(finished?`${study.stimuli.length} állás kész`:`${Math.floor(box.state.cursor/study.questions.length)+1}. állás / ${study.stimuli.length}`);
   if(finished)return;
@@ -145,7 +159,7 @@ function download(filename,text,type) {
   const url=URL.createObjectURL(new Blob([text],{type}));const a=document.createElement('a');a.href=url;a.download=filename;a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);
 }
 function backup() {download(`chessmst-${selectedSet}-backup-${Date.now()}.json`,JSON.stringify({format:'chessmst-backup-v1',state:box.state},null,2),'application/json');}
-function navigate(cursor) {box.state.cursor=cursor;changed();render();$('question').focus();}
+function navigate(cursor) {checkpointTiming();box.state.cursor=cursor;changed();render();startTiming();$('question').focus();}
 async function start() {
   selectedSet=selectSet(location.search,STIMULUS_SET);
   const response=await fetch(`./data/${SETS[selectedSet].file}`);if(!response.ok)throw new Error('Stimulus data unavailable');study=await response.json();
@@ -176,9 +190,10 @@ async function start() {
       }
     }catch(e){if(!conflict)error(`Az adatbázis most nem elérhető: ${e.message}. Ezen a böngészőn folytathatod; új eszközön várj a szinkronizálásra.`);}
   }
-  ready=true;persist();render();status();
+  ready=true;persist();render();status();startTiming();
   $('next').onclick=()=>{
     const c=current();if(!validAnswer(c.q,value()))return;
+    checkpointTiming();
     box.state.records[c.key].submitted=true;box.state.records[c.key].updatedAt=new Date().toISOString();
     if(!changed()){render();return;}
     const total=study.stimuli.length*study.questions.length;
@@ -213,7 +228,13 @@ async function start() {
     try {backup();const remote=await request('GET');checkRemote(remote);box.state=remote.state||emptyState(study);box.revision=remote.revision;box.dirty=false;box.lastMutationId=null;conflict=false;persist();render();status();error('');}
     catch(e){error(`Betöltés sikertelen: ${e.message}`);}
   };
-  addEventListener('online',sync);document.addEventListener('visibilitychange',()=>{if(!document.hidden)sync();});
+  addEventListener('online',sync);document.addEventListener('visibilitychange',()=>{
+    if(document.hidden){
+      if(timedKey&&timingStarted!==null&&!record())box.state.records[timedKey]={value:null,submitted:false,updatedAt:new Date().toISOString(),responseTimeMs:0,timingVersion:1};
+      checkpointTiming();timingStarted=null;if(record()&&!record().submitted)changed();
+    }
+    else{startTiming();sync();}
+  });
   addEventListener('beforeunload',e=>{if(box.dirty&&api||storageFailed){e.preventDefault();e.returnValue='';}});
   setInterval(sync,30000);sync();
 }

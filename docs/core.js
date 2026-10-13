@@ -35,6 +35,7 @@ export function validateState(study, state) {
   return (state.cursor < study.stimuli.length * study.questions.length || completedCount(state) === study.stimuli.length * study.questions.length) && Object.entries(state.records).every(([key, r]) => {
     const q = known.get(key);
     if (!q || !r || typeof r.submitted !== 'boolean' || typeof r.updatedAt !== 'string') return false;
+    if(r.responseTimeMs!==undefined&&(!Number.isInteger(r.responseTimeMs)||r.responseTimeMs<0))return false;
     if (r.submitted) return validAnswer(q, r.value);
     if (r.value === null) return true;
     // An unfinished pair is a valid draft, but never a submitted response.
