@@ -1,0 +1,14 @@
+name = "chessmst-ratings-api"
+main = "worker.js"
+compatibility_date = "2026-10-12"
+
+[vars]
+# Collection namespace. Set + dataset fingerprint are appended automatically.
+STUDY_ID = "chessmst-single-rater"
+# Origin only: do not include the repository path or a trailing slash.
+ALLOWED_ORIGINS = "https://IlyesAlex.github.io,http://localhost:8000,http://127.0.0.1:8000"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "chessmst-ratings"
+database_id = "d70782da-45eb-49fa-b537-eff0f01f7d63"

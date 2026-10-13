@@ -1,0 +1,19 @@
+<!doctype html>
+<html lang="hu">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="theme-color" content="#193e36"><title>Sakkállások értékelése</title><link rel="stylesheet" href="style.css"></head>
+<body>
+<header class="header"><div class="brand"><span aria-hidden="true">♞</span><div>Sakkállások<small>Értékelés</small></div></div><button id="settings" class="subtle">Mentés és adatok</button></header>
+<main>
+<div class="progress-head"><span id="position-count">Betöltés…</span><span id="total-count"></span></div><progress id="progress" value="0" max="1" aria-label="Kitöltött válaszok"></progress>
+<div id="save-status" role="status" aria-live="polite">Betöltés…</div>
+<div id="error" role="alert" hidden></div>
+<div class="workspace" id="survey">
+<section class="board-panel" aria-label="Sakkállás"><div class="board-frame"><div id="board" class="board" role="group" aria-label="Sakktábla"></div><svg id="connections" viewBox="0 0 800 800" aria-hidden="true"></svg></div><div class="board-caption"><span>Világos alul</span><span id="board-hint">A táblán nem kell lépni.</span></div></section>
+<section class="question-panel"><div id="question-count" class="eyebrow"></div><h1 id="question" tabindex="-1"></h1><p id="instruction"></p><div id="answer"></div><div id="selection-summary" aria-live="polite"></div><div class="navigation"><button id="back" class="secondary">← Előző</button><button id="next" class="primary">Mentés és tovább →</button></div><p class="pause-note">Bármikor megállhatsz. A válaszaid és a haladásod automatikusan mentésre kerülnek.</p></section>
+</div>
+<section id="complete" hidden><div class="eyebrow">Értékelés befejezve</div><h1>Minden állást értékeltél.</h1><p>Az összes válasz elkészült. Az adatok letölthetők a „Mentés és adatok” menüben.</p><button id="review" class="secondary">Válaszok áttekintése</button></section>
+</main>
+<dialog id="data-dialog"><div class="dialog-head"><h2>Mentés és adatok</h2><button id="close-dialog" aria-label="Bezárás">✕</button></div><p id="storage-description"></p><p id="sync-detail"></p><button id="sync" class="secondary">Szinkronizálás most</button><div class="downloads"><button id="download-json">Biztonsági másolat (JSON)</button><button id="download-csv">Válaszok (CSV)</button></div><label class="import-label">Biztonsági másolat visszaállítása<input id="import" type="file" accept=".json,application/json"></label><button id="resume" class="secondary">Ugrás az első hiányzó válaszhoz</button><div id="conflict-tools" hidden><p>A szerveren újabb mentés található. Előbb töltsd le a helyi biztonsági másolatot, majd töltsd be a szerver adatait.</p><button id="load-cloud">Szerver adatainak betöltése</button></div><p class="small">Eszközváltás előtt várd meg az „Adatbázisba mentve” jelzést. Egyszerre egy böngészőablakban dolgozz.</p></dialog>
+<noscript>Az értékeléshez engedélyezni kell a JavaScriptet.</noscript>
+<script type="module" src="app.js"></script>
+</body></html>

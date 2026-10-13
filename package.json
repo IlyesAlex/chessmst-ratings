@@ -1,0 +1,9 @@
+{
+  "name": "chessmst-ratings",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "node --test tests/*.test.js",
+    "preview": "node tools/serve.js"
+  }
+}

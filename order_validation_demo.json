@@ -1,0 +1,42 @@
+{
+  "set": "demo",
+  "studyVersion": "chessmst-demo-8d3af4586acb233f",
+  "seed": 20261012,
+  "source_row_count": 20,
+  "trial_count": 40,
+  "question_count": 12,
+  "required_answers": 480,
+  "pair_count": 20,
+  "singleton_count": 0,
+  "stimtype_counts": {
+    "BOTHLURE": 28,
+    "BLACKLURE": 12
+  },
+  "minimum_intervening_positions": 15,
+  "maximum_same_type_run": 3,
+  "all_retained_positions_preserved": true,
+  "unique_board_positions": 40,
+  "excluded_repeat_second_trialnos": [],
+  "pair_gaps": {
+    "BOTHLURE:13": 17,
+    "BLACKLURE:18": 19,
+    "BOTHLURE:12": 31,
+    "BOTHLURE:3": 21,
+    "BOTHLURE:5": 15,
+    "BLACKLURE:19": 18,
+    "BOTHLURE:9": 30,
+    "BOTHLURE:6": 15,
+    "BLACKLURE:17": 21,
+    "BOTHLURE:4": 17,
+    "BOTHLURE:1": 15,
+    "BOTHLURE:10": 17,
+    "BLACKLURE:16": 15,
+    "BOTHLURE:7": 17,
+    "BLACKLURE:15": 17,
+    "BOTHLURE:8": 17,
+    "BOTHLURE:11": 22,
+    "BLACKLURE:20": 18,
+    "BOTHLURE:2": 15,
+    "BOTHLURE:14": 15
+  }
+}

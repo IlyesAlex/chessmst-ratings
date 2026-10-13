@@ -1,0 +1,7 @@
+node_modules/
+backend/.wrangler/
+*.log
+backups/
+qa/
+chessmst-ratings.zip
+__pycache__/
