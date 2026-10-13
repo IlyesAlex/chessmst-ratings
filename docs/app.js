@@ -1,7 +1,7 @@
 import {API_URL,STIMULUS_SET} from './config.js';
 import {SETS,selectSet} from './sets.js';
 import {parseFen,recordKey,validAnswer,clickPair,toPairs,emptyState,validateState,completedCount,firstIncomplete,exportRows} from './core.js';
-import {pieceSvg} from './pieces.js';
+import {pieceSvg} from './pieces.js?v=reference-art-1';
 const $ = id => document.getElementById(id);
 const colors = ['#b64a27','#315cbb','#873fb0','#197663','#b07110','#b43875'];
 const names = {p:'gyalog',n:'huszár',b:'futó',r:'bástya',q:'vezér',k:'király'};
