@@ -1,6 +1,29 @@
 # ChessMST position ratings
 
-A static, Hungarian-language survey for a single chess GM rating all positions in the "chessMST" research project.. GitHub Pages serves the webpage; a Cloudflare Worker and D1 SQLite database save results. Everything needed for the frontend is in `docs/`, with no build or frontend dependencies.
+A static, Hungarian-language survey for a single chess GM rating all positions in the "chessMST" research project. GitHub Pages serves the webpage; a Cloudflare Worker and D1 SQLite database save results. Everything needed for the frontend is in `docs/`, with no build or frontend dependencies.
+
+## Start here
+
+- [Setup, deployment and choosing B or demo](HOWTO.md). The current default is **demo**; change `STIMULUS_SET` in `docs/config.js` or use `?set=B` / `?set=demo` in the survey URL.
+- [Backup, SQL/CSV/Excel export and database emptying](EXPORT_INSTRUCTIONS.md). Double-click `EXPORT_DATA.cmd` to fetch fresh data. `EMPTY_DATABASE.cmd` creates a backup and requires typed confirmations before deleting database responses.
+- [Database checks and local-save cleanup (Hungarian)](DATABASE_GUIDE.md).
+- Local preview: run `npm run preview`, then open http://127.0.0.1:8000/.
+- Published survey: https://ilyesalex.github.io/chessmst-ratings/.
+
+## Project files
+
+| Location | Purpose |
+| --- | --- |
+| `docs/` | The complete webpage, board artwork and generated survey datasets. GitHub Pages publishes this folder. |
+| `backend/` | Worker API, D1 schema, database configuration and administration SQL. |
+| `tools/` | Preview server, stimulus generator, database checks, export and emptying scripts. |
+| `tests/`, `.github/` | Validation and the GitHub Pages deployment workflow. |
+| Three root `.xlsx` workbooks | Source positions and questions; required to regenerate and validate datasets. |
+| `stimuli_order*.csv`, `order_validation*.json` | Reproducible presentation schedules and constraint reports. |
+| `export/` | Private dated exports: full database SQL, processed SQL/CSV/XLSX and snapshot metadata. |
+| `backups/` | Private database backups, including automatic backups before emptying. |
+
+Saved results in `export/` and `backups/` are ignored by Git. Each future export creates a new dated folder. Temporary caches are recreated as needed; project ZIPs and old screenshots are unnecessary.
 
 ## Included stimulus sets
 

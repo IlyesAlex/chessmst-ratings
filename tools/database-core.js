@@ -20,6 +20,7 @@ export function resetSql(ids,{allData=false}={}) {
   const history=allData?'':` WHERE study_id IN (${ids.map(quote).join(', ')})`;
   const states=allData?'':` WHERE id IN (${ids.map(quote).join(', ')})`;
   return '-- DELETES STORED RESPONSES. Run only after backup and closing all survey tabs.\n'+
-    `DELETE FROM response_history${history};\nDELETE FROM study_state${states};\n`+
+    'UPDATE collection_control SET generation=generation+1 WHERE id=1;\n'+
+    `DELETE FROM study_state${states};\nDELETE FROM response_history${history};\n`+
     'SELECT (SELECT COUNT(*) FROM study_state) AS remaining_states, (SELECT COUNT(*) FROM response_history) AS remaining_history;\n';
 }

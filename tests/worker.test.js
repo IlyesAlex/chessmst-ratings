@@ -6,26 +6,52 @@ import demo from '../docs/data/study_demo.json' with {type:'json'};
 import {emptyState} from '../docs/core.js';
 function environment() {
   const rows=new Map();
-  return {STUDY_ID:'test',ALLOWED_ORIGINS:'https://example.github.io',DB:{prepare(sql){return{bind(...params){return {
-    async first(){return rows.get(params[0])||null;},
+  const env={STUDY_ID:'test',ALLOWED_ORIGINS:'https://example.github.io',generation:0,rows,
+    reset(){this.generation++;rows.clear();},DB:{prepare(sql){const statement={params:[],bind(...params){this.params=params;return this;},
+    async first(){
+      if(sql.includes('LEFT JOIN study_state'))return {generation:env.generation,...rows.get(this.params[0])};
+      if(sql.includes('FROM collection_control'))return {generation:env.generation};
+      return rows.get(this.params[0])||null;
+    },
     async run(){
-      const [id,version,json,mutation,time,base]=params;
+      const [id,version,json,mutation,time,generation,base]=this.params;
+      if(env.beforeWrite){env.beforeWrite();env.beforeWrite=null;}
       const row=rows.get(id);
-      if(row&&row.revision!==base)return {meta:{changes:0}};
+      if(generation!==env.generation||(row?row.revision!==base:base!==0))return {meta:{changes:0}};
       rows.set(id,{revision:(row?.revision||0)+1,state_json:json,last_mutation_id:mutation});
       return {meta:{changes:1}};
     }
-  };}};}}};
+  };return statement;}}};return env;
 }
-const req=(method,body,origin='https://example.github.io',set='B')=>new Request(`https://api.example/state?set=${set}`,{method,headers:{Origin:origin,'Content-Type':'application/json'},body:body?JSON.stringify(body):undefined});
+const req=(method,body,origin='https://example.github.io',set='B')=>new Request(`https://api.example/state?set=${set}`,{method,headers:{Origin:origin,'Content-Type':'application/json'},body:body?JSON.stringify({generation:0,...body}):undefined});
 test('Database API saves and restores exact drafts with optimistic revision control',async()=>{
-  const env=environment();let r=await worker.fetch(req('GET'),env);assert.deepEqual(await r.json(),{revision:0,state:null,lastMutationId:null});
+  const env=environment();let r=await worker.fetch(req('GET'),env);assert.deepEqual(await r.json(),{generation:0,revision:0,state:null,lastMutationId:null});
   const state=emptyState(study),body={state,baseRevision:0,mutationId:'mutation-1'};
   r=await worker.fetch(req('PUT',body),env);assert.equal(r.status,200);assert.equal((await r.json()).revision,1);
   r=await worker.fetch(req('PUT',body),env);assert.equal(r.status,200);assert.equal((await r.json()).revision,1);
   r=await worker.fetch(req('PUT',{...body,mutationId:'stale-device'}),env);assert.equal(r.status,409);
   r=await worker.fetch(req('GET'),env);assert.deepEqual((await r.json()).state,state);
   r=await worker.fetch(req('PUT',{...body,baseRevision:1,mutationId:'mutation-2'}),env);assert.equal((await r.json()).revision,2);
+});
+test('Reset rejects stale and legacy sessions; a fresh fetched generation can start again',async()=>{
+  const env=environment(),body={state:emptyState(study),baseRevision:0,mutationId:'old'};
+  assert.equal((await worker.fetch(req('PUT',body),env)).status,200);
+  env.reset();
+  assert.equal((await worker.fetch(req('PUT',body),env)).status,409);
+  assert.equal((await worker.fetch(req('PUT',{...body,generation:undefined}),env)).status,428);
+  assert.equal(env.rows.size,0);
+  const remote=await (await worker.fetch(req('GET'),env)).json();
+  assert.equal(remote.state,null);assert.equal(remote.generation,1);
+  assert.equal((await worker.fetch(req('PUT',{...body,generation:remote.generation,mutationId:'new'}),env)).status,200);
+});
+test('A reset racing an initial insert or an update cannot recreate deleted state',async()=>{
+  for(const existing of [false,true]){
+    const env=environment(),body={state:emptyState(study),baseRevision:0,mutationId:'old'};
+    if(existing){await worker.fetch(req('PUT',body),env);body.baseRevision=1;body.mutationId='next';}
+    env.beforeWrite=()=>env.reset();
+    const response=await worker.fetch(req('PUT',body),env);
+    assert.equal(response.status,409);assert.equal((await response.json()).code,'database_reset');assert.equal(env.rows.size,0);
+  }
 });
 test('API rejects foreign origins and malformed data and handles preflight',async()=>{
   const env=environment();assert.equal((await worker.fetch(req('GET',null,'https://other.example'),env)).status,403);

@@ -1,10 +1,26 @@
 # Export: easiest steps on this computer
 
+## Double-click database emptying
+
+Use **EMPTY_DATABASE.cmd** only when all current records are test data. It affects B, demo and older versions.
+
+1. Close every survey tab on your computer and phone.
+2. Double-click `EMPTY_DATABASE.cmd` in the project folder.
+3. Type **CLOSED**. The script creates and checks a full SQL backup in a dated `backups/before-empty-...` folder.
+4. When prompted, type **EMPTY chessmst-ratings** exactly. Any other answer cancels deletion.
+5. Wait for **SUCCESS: ... empty (0 / 0)**.
+6. Reopen/reload the updated survey. It refetches the database, detects the reset marker and starts from the fresh server state. Old active browser answers are isolated as local recovery copies and never automatically re-uploaded. An older webpage must reload before it can save.
+7. Optional: visit `reset-local.html` on each browser/device to download and remove those local recovery copies. Localhost and GitHub Pages each have their own storage. Do not import old test backups into the new collection.
+
+This script preserves the database schema and Worker. It does not require the Excel runtime. If backup creation fails or either confirmation is missing, no deletion is attempted. The script has been tested without running deletion against your production data.
+
+**Existing deployment upgrade:** apply `backend/schema.sql` to your existing D1 database, deploy the updated Worker, then publish the updated `docs/` folder. Schema application adds reset protection and preserves existing responses. Keep the `collection_control` row when emptying; the included reset scripts do this. A direct `DELETE FROM study_state` also advances the marker through a database trigger. The page checks on opening, every 30 seconds, on reconnecting, when returning to the tab and before uploading. A reset between fetch and upload is rejected by the API. If the API is unavailable, local edits stay local until a successful check.
+
 ## First-time setup
 
-1. Extract the updated project ZIP into a folder. Keep `tools`, `docs` and `backend` together.
+1. Download or clone the GitHub repository into a folder. Keep `tools`, `docs` and `backend` together.
 2. Install Node.js LTS if needed. On your present computer it is already installed.
-3. Open PowerShell in the extracted project folder. Log in to the Cloudflare account that owns your database:
+3. Open PowerShell in the project folder. Log in to the Cloudflare account that owns your database:
 
 ```powershell
 cd backend

@@ -14,5 +14,6 @@ test('Inspection distinguishes drafts, submitted answers and complete positions'
 test('Empty cloud state is recognised and reset SQL scope is explicit',()=>{
   assert.equal(inspectState(study,{state:null,revision:0}).empty,true);
   const sql=resetSql(["test's-demo"]);assert.ok(sql.includes("'test''s-demo'"));assert.ok(sql.includes('WHERE study_id IN'));assert.ok(sql.includes('WHERE id IN'));
-  assert.throws(()=>resetSql([]));assert.equal(resetSql([],{allData:true}).includes('WHERE'),false);
+  assert.throws(()=>resetSql([]));assert.ok(resetSql([],{allData:true}).includes('DELETE FROM study_state;'));
+  assert.ok(sql.includes('UPDATE collection_control SET generation=generation+1'));
 });

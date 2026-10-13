@@ -3,6 +3,7 @@ import {SETS,selectSet} from './sets.js';
 import {parseFen,recordKey,validAnswer,clickPair,toPairs,emptyState,validateState,completedCount,firstIncomplete,exportRows} from './core.js';
 import {pieceSvg} from './pieces.js?v=reference-art-1';
 import {elapsed} from './timing.js';
+import {remoteAction} from './sync-state.js';
 const $ = id => document.getElementById(id);
 const colors = ['#b64a27','#315cbb','#873fb0','#197663','#b07110','#b43875'];
 const names = {p:'gyalog',n:'huszár',b:'futó',r:'bástya',q:'vezér',k:'király'};
@@ -126,33 +127,56 @@ function render() {
 }
 async function request(method,body) {
   const response=await fetch(`${api}/state?set=${encodeURIComponent(selectedSet)}`,{method,cache:'no-store',headers:body?{'Content-Type':'application/json'}:{},body:body?JSON.stringify(body):undefined,signal:AbortSignal.timeout(12000)});
-  if(response.status===409){conflict=true;status();throw new Error('conflict');}
+  if(response.status===409){
+    const detail=await response.json();
+    if(detail.code==='database_reset'){const e=new Error('database reset');e.code=detail.code;throw e;}
+    conflict=true;status();throw new Error('conflict');
+  }
   if(!response.ok)throw new Error(`HTTP ${response.status}`);
   return response.json();
 }
 function checkRemote(remote) {
   if(remote.state&&!validateState(study,remote.state))throw new Error('A szerver másik vagy érvénytelen adatsort tartalmaz.');
 }
+function applyRemote(remote) {
+  checkRemote(remote);
+  const action=remoteAction(box,remote);
+  if(action==='conflict'){conflict=true;status();return false;}
+  if(action==='reset'||action==='load'){
+    if(action==='reset'){
+      // Keep an isolated local recovery copy; it is never considered for auto-sync.
+      if(Object.keys(box.state.records).length||box.state.cursor){
+        localStorage.setItem(`${key}:before-reset:${Date.now()}:${crypto.randomUUID()}`,JSON.stringify(box));
+      }
+      clearTimeout(timer);timedKey=null;timingStarted=null;
+      error('Az adatbázis üres vagy újraindult. A friss szerverállapot betöltve; a régi helyi válaszok nem kerülnek vissza az adatbázisba. Helyi másolatuk a reset-local.html oldalon letölthető.');
+    }
+    box.state=remote.state||emptyState(study);box.dirty=false;box.lastMutationId=null;conflict=false;
+  }
+  box.generation=remote.generation;box.revision=remote.revision;
+  persist();if(ready&&(action==='reset'||action==='load'))render();
+  return true;
+}
 async function sync() {
-  if(!api||syncing||conflict||!ready)return;
+  if(!api||syncing||!ready)return;
   syncing=true;status('Szinkronizálás…');
   try {
-    const remote=await request('GET');checkRemote(remote);
-    if(remote.revision!==box.revision) {
-      if(remote.lastMutationId && remote.lastMutationId===box.lastMutationId) {box.revision=remote.revision;persist();}
-      else if(!box.dirty){box.state=remote.state||emptyState(study);box.revision=remote.revision;persist();render();}
-      else {conflict=true;status();return;}
-    }
+    const remote=await request('GET');if(!applyRemote(remote))return;
     if(box.dirty) {
       const edits=box.edits;
       const mutationId=crypto.randomUUID();box.lastMutationId=mutationId;persist();
-      const result=await request('PUT',{state:structuredClone(box.state),baseRevision:box.revision,mutationId});
+      const result=await request('PUT',{state:structuredClone(box.state),baseRevision:box.revision,generation:box.generation,mutationId});
       box.revision=result.revision;
       if(box.edits===edits)box.dirty=false;
       persist();
     }
     status();
-  } catch(e) { if(!conflict)status(`Ezen a böngészőn mentve. Az adatbázis nem elérhető (${e.message}). Újrapróbálás automatikusan.`); }
+  } catch(e) {
+    if(e.code==='database_reset'){
+      try{applyRemote(await request('GET'));status();}
+      catch(reloadError){status(`Az adatbázis újratöltése szükséges (${reloadError.message}). Újrapróbálás automatikusan.`);}
+    }else if(!conflict)status(`Ezen a böngészőn mentve. Az adatbázis nem elérhető (${e.message}). Újrapróbálás automatikusan.`);
+  }
   finally{syncing=false;if(box.dirty&&!conflict){clearTimeout(timer);timer=setTimeout(sync,30000);}}
 }
 function download(filename,text,type) {
@@ -179,15 +203,10 @@ async function start() {
   if(saved) {
     try {box=JSON.parse(saved);if(!validateState(study,box.state)||!Number.isInteger(box.revision)||box.revision<0||!Number.isInteger(box.edits)||typeof box.dirty!=='boolean')throw new Error();}
     catch {throw new Error('A helyi mentés sérült. Az eredeti mentést nem írtuk felül. Állítsd vissza egy JSON biztonsági másolatból a böngésző tárhelyének javítása után.');}
-  }else box={state:emptyState(study),revision:0,dirty:false,edits:0,lastMutationId:null};
+  }else box={state:emptyState(study),revision:0,generation:null,dirty:false,edits:0,lastMutationId:null};
   if(api) {
     try {
-      const remote=await request('GET');checkRemote(remote);
-      if(!box.dirty){box.state=remote.state||box.state;box.revision=remote.revision;}
-      else if(remote.revision!==box.revision){
-        if(remote.lastMutationId===box.lastMutationId&&box.lastMutationId)box.revision=remote.revision;
-        else conflict=true;
-      }
+      applyRemote(await request('GET'));
     }catch(e){if(!conflict)error(`Az adatbázis most nem elérhető: ${e.message}. Ezen a böngészőn folytathatod; új eszközön várj a szinkronizálásra.`);}
   }
   ready=true;persist();render();status();startTiming();
@@ -227,12 +246,11 @@ async function start() {
   $('load-cloud').onclick=async()=>{
     if(syncing)return;
     if(!confirm('Betöltöd a szerver válaszait? A helyi válaszokról automatikusan biztonsági másolat készül.'))return;
-    try {backup();const remote=await request('GET');checkRemote(remote);box.state=remote.state||emptyState(study);box.revision=remote.revision;box.dirty=false;box.lastMutationId=null;conflict=false;persist();render();status();error('');}
+    try {backup();const remote=await request('GET');checkRemote(remote);remoteAction({...box,dirty:false},remote);box.state=remote.state||emptyState(study);box.revision=remote.revision;box.generation=remote.generation;box.dirty=false;box.lastMutationId=null;conflict=false;timedKey=null;persist();render();status();error('');}
     catch(e){error(`Betöltés sikertelen: ${e.message}`);}
   };
   addEventListener('online',sync);document.addEventListener('visibilitychange',()=>{
     if(document.hidden){
-      if(timedKey&&timingStarted!==null&&!record())box.state.records[timedKey]={value:null,submitted:false,updatedAt:new Date().toISOString(),responseTimeMs:0,timingVersion:1};
       checkpointTiming();timingStarted=null;if(record()&&!record().submitted)changed();
     }
     else{startTiming();sync();}

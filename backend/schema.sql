@@ -35,3 +35,12 @@ CREATE VIEW IF NOT EXISTS responses AS
     json_extract(j.value,'$.updatedAt') AS updated_at
   FROM study_state AS s,json_each(s.state_json,'$.records') AS j;
 CREATE INDEX IF NOT EXISTS history_key ON response_history(study_id,response_key,revision);
+-- This row must survive emptying. Even manual state deletion invalidates old sessions.
+CREATE TABLE IF NOT EXISTS collection_control (
+  id INTEGER PRIMARY KEY CHECK(id=1),
+  generation INTEGER NOT NULL CHECK(generation>=0)
+);
+INSERT OR IGNORE INTO collection_control(id,generation) VALUES(1,0);
+CREATE TRIGGER IF NOT EXISTS reset_generation AFTER DELETE ON study_state BEGIN
+  UPDATE collection_control SET generation=generation+1 WHERE id=1;
+END;
