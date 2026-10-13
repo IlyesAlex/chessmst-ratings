@@ -1,7 +1,7 @@
 name: Deploy survey to GitHub Pages
 on:
   push:
-    branches: [main]
+    branches: [main, master]
   workflow_dispatch:
 permissions:
   contents: read
@@ -10,24 +10,32 @@ permissions:
 concurrency:
   group: pages
   cancel-in-progress: false
+env:
+  # A rerun keeps run_id but increments run_attempt. Do not reuse an old upload.
+  PAGES_ARTIFACT: github-pages-${{ github.run_id }}-${{ github.run_attempt }}
 jobs:
   deploy:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
         with:
           node-version: '22'
+          package-manager-cache: false
       - run: npm test
       - run: python tests/database_test.py
       - run: python tests/source_test.py
-      - uses: actions/configure-pages@v5
-      - uses: actions/upload-pages-artifact@v3
+      - uses: actions/configure-pages@v6
+      - uses: actions/upload-pages-artifact@v5
         with:
+          name: ${{ env.PAGES_ARTIFACT }}
           path: docs
+          include-hidden-files: true
       - name: Deploy
         id: deployment
-        uses: actions/deploy-pages@v4
+        uses: actions/deploy-pages@v5
+        with:
+          artifact_name: ${{ env.PAGES_ARTIFACT }}
