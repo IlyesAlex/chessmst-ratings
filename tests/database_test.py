@@ -28,3 +28,10 @@ assert db.execute('SELECT answer,submitted FROM responses').fetchone()==(0,1)
 assert db.execute('SELECT count(*) FROM response_history').fetchone()[0]==2
 db.commit()
 print('SQLite schema, revision compare-and-swap, history and response view: PASS')
+db.executescript((root/'backend/reset-all-test-data.sql').read_text())
+assert db.execute('SELECT count(*) FROM study_state').fetchone()[0]==0
+assert db.execute('SELECT count(*) FROM response_history').fetchone()[0]==0
+assert db.execute('SELECT count(*) FROM responses').fetchone()[0]==0
+assert db.execute("SELECT count(*) FROM sqlite_master WHERE type='trigger'").fetchone()[0]==2
+assert save(0,'after-reset')==1
+print('Reset SQL deletes test data and preserves the working schema: PASS (in-memory test only)')

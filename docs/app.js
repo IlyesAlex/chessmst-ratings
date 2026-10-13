@@ -7,7 +7,8 @@ const colors = ['#b64a27','#315cbb','#873fb0','#197663','#b07110','#b43875'];
 const names = {p:'gyalog',n:'huszár',b:'futó',r:'bástya',q:'vezér',k:'király'};
 let study, box, key, selectedSet, syncing=false, conflict=false, timer, storageFailed=false, ready=false;
 let lock;
-const api = API_URL.replace(/\/$/,'');
+const preview = new URLSearchParams(location.search).get('preview')==='1';
+const api = preview ? '' : API_URL.replace(/\/$/,'');
 const error = message => { $('error').textContent=message; $('error').hidden=!message; };
 function persist() {
   try { localStorage.setItem(key,JSON.stringify(box)); storageFailed=false; return true; }
@@ -44,7 +45,7 @@ function renderBoard(s,q) {
     button.dataset.square=square;
     button.disabled=q.mode==='scale';
     button.setAttribute('aria-label',`${square}${p?`, ${p===p.toUpperCase()?'világos':'sötét'} ${names[p.toLowerCase()]}`:', üres'}`);
-    button.innerHTML=(p?pieceSvg(p):'')+(r===1?`<span class="coord file">${'abcdefgh'[f]}</span>`:'')+(f===0?`<span class="coord rank">${r}</span>`:'');
+    button.innerHTML=p?pieceSvg(p):'';
     const groups=pairs.map((pair,i)=>pair.includes(square)?i:-1).filter(i=>i>=0);
     const selected=q.mode==='squares'&&v?.includes(square);
     if (selected||groups.length) button.classList.add('selected');
@@ -72,7 +73,7 @@ function render() {
   $('progress').max=total;$('progress').value=done;$('total-count').textContent=`${done} / ${total} válasz`;
   const c=current(),finished=!c.s;
   $('survey').hidden=finished;$('complete').hidden=!finished;
-  $('position-count').textContent=`${SETS[selectedSet].label} · `+(finished?`${study.stimuli.length} állás kész`:`${Math.floor(box.state.cursor/study.questions.length)+1}. állás / ${study.stimuli.length}`);
+  $('position-count').textContent=`${preview?'Előnézet · ':''}${SETS[selectedSet].label} · `+(finished?`${study.stimuli.length} állás kész`:`${Math.floor(box.state.cursor/study.questions.length)+1}. állás / ${study.stimuli.length}`);
   if(finished)return;
   const {s,q}=c,v=value();
   $('question-count').textContent=`${box.state.cursor%study.questions.length+1}. kérdés / ${study.questions.length}`;
@@ -150,7 +151,9 @@ async function start() {
   const response=await fetch(`./data/${SETS[selectedSet].file}`);if(!response.ok)throw new Error('Stimulus data unavailable');study=await response.json();
   if(study.set!==selectedSet)throw new Error('Stimulus set does not match its data file');
   document.title=`Sakkállások értékelése · ${SETS[selectedSet].label}`;
-  key=`chessmst:${study.studyVersion}:${api||'local'}`;
+  document.querySelectorAll('.outer-files').forEach(row=>{row.innerHTML=[...'abcdefgh'].map(f=>`<span>${f}</span>`).join('');});
+  document.querySelectorAll('.outer-ranks').forEach(col=>{col.innerHTML=[8,7,6,5,4,3,2,1].map(r=>`<span>${r}</span>`).join('');});
+  key=`chessmst:${study.studyVersion}:${preview?'preview':api||'local'}`;
   // Lock the study in this browser to prevent two tabs overwriting the same local store.
   if(navigator.locks) {
     let resolveLock;const acquired=new Promise(r=>resolveLock=r);

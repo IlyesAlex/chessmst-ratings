@@ -6,7 +6,7 @@ compatibility_date = "2026-10-12"
 # Collection namespace. Set + dataset fingerprint are appended automatically.
 STUDY_ID = "chessmst-single-rater"
 # Origin only: do not include the repository path or a trailing slash.
-ALLOWED_ORIGINS = "https://IlyesAlex.github.io,http://localhost:8000,http://127.0.0.1:8000"
+ALLOWED_ORIGINS = "https://ilyesalex.github.io,http://localhost:8000,http://127.0.0.1:8000"
 
 [[d1_databases]]
 binding = "DB"

@@ -7,7 +7,11 @@ const studies={B:studyB,demo:studyDemo};
 export default {
   async fetch(request,env) {
     const origin=request.headers.get('Origin');
-    const allowed=(env.ALLOWED_ORIGINS||'').split(',').map(x=>x.trim());
+    // Browsers send canonical origins (including lowercase hostnames).
+    // Canonicalise configuration too, so mixed-case GitHub usernames work.
+    const allowed=(env.ALLOWED_ORIGINS||'').split(',').map(x=>{
+      try{return new URL(x.trim()).origin;}catch{return null;}
+    });
     const headers={'Content-Type':'application/json','Cache-Control':'no-store','Vary':'Origin'};
     if(origin&&allowed.includes(origin)) {
       headers['Access-Control-Allow-Origin']=origin;

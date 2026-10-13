@@ -43,3 +43,12 @@ test('B and demo cloud states stay independent and cross-set payloads are reject
   assert.equal((await worker.fetch(req('PUT',{state:b,baseRevision:1,mutationId:'bad'},undefined,'demo'),env)).status,400);
   assert.equal((await worker.fetch(req('GET',null,undefined,'missing'),env)).status,400);
 });
+test('Mixed-case configured hostnames match canonical browser origins',async()=>{
+  const env=environment();env.ALLOWED_ORIGINS='https://IlyesAlex.github.io,http://localhost:8000';
+  for(const method of ['GET','OPTIONS']){
+    const response=await worker.fetch(req(method,null,'https://ilyesalex.github.io'),env);
+    assert.equal(response.status,method==='OPTIONS'?204:200);
+    assert.equal(response.headers.get('Access-Control-Allow-Origin'),'https://ilyesalex.github.io');
+  }
+  assert.equal((await worker.fetch(req('GET',null,'https://other.github.io'),env)).status,403);
+});

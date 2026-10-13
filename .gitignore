@@ -5,3 +5,5 @@ backups/
 qa/
 chessmst-ratings.zip
 __pycache__/
+DATABASE_GUIDE.md
+HOWTO.md

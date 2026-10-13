@@ -1,6 +1,6 @@
 <!doctype html>
 <html lang="hu">
-<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="theme-color" content="#193e36"><title>Sakkállások értékelése</title><link rel="stylesheet" href="style.css"></head>
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="theme-color" content="#193e36"><title>Sakkállások értékelése</title><link rel="stylesheet" href="style.css"><link rel="stylesheet" href="board-reference.css"></head>
 <body>
 <header class="header"><div class="brand"><span aria-hidden="true">♞</span><div>Sakkállások<small>Értékelés</small></div></div><button id="settings" class="subtle">Mentés és adatok</button></header>
 <main>
@@ -8,7 +8,7 @@
 <div id="save-status" role="status" aria-live="polite">Betöltés…</div>
 <div id="error" role="alert" hidden></div>
 <div class="workspace" id="survey">
-<section class="board-panel" aria-label="Sakkállás"><div class="board-frame"><div id="board" class="board" role="group" aria-label="Sakktábla"></div><svg id="connections" viewBox="0 0 800 800" aria-hidden="true"></svg></div><div class="board-caption"><span>Világos alul</span><span id="board-hint">A táblán nem kell lépni.</span></div></section>
+<section class="board-panel" aria-label="Sakkállás"><div class="board-frame"><div class="outer-files top" aria-hidden="true"></div><div class="outer-ranks left" aria-hidden="true"></div><div class="board-surface"><div id="board" class="board" role="group" aria-label="Sakktábla"></div><svg id="connections" viewBox="0 0 800 800" aria-hidden="true"></svg></div><div class="outer-files bottom" aria-hidden="true"></div><div class="outer-ranks right" aria-hidden="true"></div></div><div class="board-caption"><span>Világos alul</span><span id="board-hint">A táblán nem kell lépni.</span></div></section>
 <section class="question-panel"><div id="question-count" class="eyebrow"></div><h1 id="question" tabindex="-1"></h1><p id="instruction"></p><div id="answer"></div><div id="selection-summary" aria-live="polite"></div><div class="navigation"><button id="back" class="secondary">← Előző</button><button id="next" class="primary">Mentés és tovább →</button></div><p class="pause-note">Bármikor megállhatsz. A válaszaid és a haladásod automatikusan mentésre kerülnek.</p></section>
 </div>
 <section id="complete" hidden><div class="eyebrow">Értékelés befejezve</div><h1>Minden állást értékeltél.</h1><p>Az összes válasz elkészült. Az adatok letölthetők a „Mentés és adatok” menüben.</p><button id="review" class="secondary">Válaszok áttekintése</button></section>
