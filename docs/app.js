@@ -4,6 +4,7 @@ import {parseFen,recordKey,validAnswer,clickPair,toPairs,emptyState,validateStat
 import {pieceSvg} from './pieces.js?v=reference-art-1';
 import {elapsed} from './timing.js';
 import {remoteAction} from './sync-state.js';
+import {scaleLabels} from './scales.js';
 const $ = id => document.getElementById(id);
 const colors = ['#b64a27','#315cbb','#873fb0','#197663','#b07110','#b43875'];
 const names = {p:'gyalog',n:'huszár',b:'futó',r:'bástya',q:'vezér',k:'király'};
@@ -105,7 +106,7 @@ function render() {
     }
     $('answer').append(scale);
     const labels=document.createElement('div');labels.className='scale-labels';
-    labels.innerHTML=q.q_id==='ch_material'?'<span>−3 · Sötét előnye</span><span>0 · Egyenlő</span><span>+3 · Világos előnye</span>':'<span>1 · Egyáltalán nem</span><span>7 · Teljes mértékben</span>';
+    for(const text of scaleLabels(q)){const label=document.createElement('span');label.textContent=text;labels.append(label);}
     $('answer').append(labels);
   } else {
     const tools=document.createElement('div');tools.className='selection-tools';
@@ -186,7 +187,7 @@ function backup() {download(`chessmst-${selectedSet}-backup-${Date.now()}.json`,
 function navigate(cursor) {checkpointTiming();box.state.cursor=cursor;changed();render();startTiming();$('question').focus();}
 async function start() {
   selectedSet=selectSet(location.search,STIMULUS_SET);
-  const response=await fetch(`./data/${SETS[selectedSet].file}`);if(!response.ok)throw new Error('Stimulus data unavailable');study=await response.json();
+  const response=await fetch(`./data/${SETS[selectedSet].file}`,{cache:'no-store'});if(!response.ok)throw new Error('Stimulus data unavailable');study=await response.json();
   if(study.set!==selectedSet)throw new Error('Stimulus set does not match its data file');
   document.title=`Sakkállások értékelése · ${SETS[selectedSet].label}`;
   document.querySelectorAll('.outer-files').forEach(row=>{row.innerHTML=[...'abcdefgh'].map(f=>`<span>${f}</span>`).join('');});

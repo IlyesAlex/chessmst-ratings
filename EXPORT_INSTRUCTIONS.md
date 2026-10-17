@@ -86,6 +86,8 @@ The full SQL backup still includes the entire database. These options filter onl
 
 Only the latest saved record per trial/question is exported; earlier edits are not duplicated. The preprocessed sheet contains the current configured collection's B/demo dataset versions. The full SQL backup contains older versions too.
 
+The 2026-10-17 questionnaire revision has new B/demo version IDs. The new overall evaluation is exported as `ch_position_eval` (1 = Black better, 4 = equal, 7 = White better); the revised endangered-piece selection is `ch_endangered`. Older `ch_undefended` and `ch_strong_pawn` answers remain in full database backups under the prior versions and are not mixed into current-version response sheets.
+
 **Elapsed time was not collected before this update.** Older responses have a blank `response_time_seconds` value. Do not interpret blank as zero or calculate reaction time from gaps between timestamps. Publish the updated frontend to start collecting durations; existing records remain compatible.
 
 The full database backup and the response snapshot are read sequentially. Pause collection until DONE to keep both consistent. The CSV, XLSX and preprocessed SQL all use the same single response snapshot.

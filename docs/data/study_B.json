@@ -2821,6 +2821,12 @@
       "max": 7
     },
     {
+      "q_id": "ch_unint",
+      "q_type": "indicate",
+      "q_name": "Jelöld meg a mezőket, ahol \"sakkszerűtlen\" helyzen álló figurát látsz!",
+      "mode": "squares"
+    },
+    {
       "q_id": "ch_king_white",
       "q_type": "likert",
       "q_name": "Mennyire van biztonságban a világos király?",
@@ -2845,15 +2851,23 @@
       "max": 3
     },
     {
+      "q_id": "ch_position_eval",
+      "q_type": "likert",
+      "q_name": "Ki áll jobban az állás alapján?",
+      "mode": "scale",
+      "min": 1,
+      "max": 7
+    },
+    {
       "q_id": "ch_hang",
       "q_type": "indicate",
       "q_name": "Jelöld meg a mezőket, ahol logó figurát látsz!",
       "mode": "squares"
     },
     {
-      "q_id": "ch_undefended",
+      "q_id": "ch_endangered",
       "q_type": "indicate",
-      "q_name": "Jelöld meg a mezőket, ahol védtelen figurát látsz!",
+      "q_name": "Jelöld meg a mezőket, ahol veszélyben levő figurát látsz!",
       "mode": "squares"
     },
     {
@@ -2863,21 +2877,9 @@
       "mode": "squares"
     },
     {
-      "q_id": "ch_strong_pawn",
-      "q_type": "indicate",
-      "q_name": "Jelöld meg a mezőket, ahol erős gyalogot látsz!",
-      "mode": "squares"
-    },
-    {
       "q_id": "ch_strong_piece",
       "q_type": "indicate",
       "q_name": "Jelöld meg a mezőket, ahol veszélyes figurát látsz!",
-      "mode": "squares"
-    },
-    {
-      "q_id": "ch_unint",
-      "q_type": "indicate",
-      "q_name": "Jelöld meg a mezőket, ahol \"sakkszerűtlen\" helyzen álló figurát látsz!",
       "mode": "squares"
     },
     {
@@ -2893,5 +2895,5 @@
       "mode": "squares"
     }
   ],
-  "studyVersion": "chessmst-b-e2b642508c30c974"
+  "studyVersion": "chessmst-b-c2c973ce755ac3f4"
 }

@@ -36,6 +36,8 @@ def read_xlsx(path):
                     value = strings[int(raw)]
                 elif typ == 'inlineStr':
                     value = ''.join(cell.find('s:is', NS).itertext())
+                elif typ == 'str':
+                    value = raw
                 elif raw is not None:
                     value = float(raw) if '.' in raw else int(raw)
                 else:

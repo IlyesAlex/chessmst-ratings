@@ -47,13 +47,13 @@ A content fingerprint identifies each exact set, order and question list. Keep t
 
 ## Answering and interaction
 
-- Twelve questions in source workbook order: four scales and eight square-selection questions. Material uses −3…3; other scales use 1…7. A scale needs an explicit selection; material zero is valid.
+- Twelve questions in source workbook order: five scales and seven square-selection questions. Material uses −3…3; other scales use 1…7. Overall position evaluation uses 1 = Black stands better, 4 = equal, 7 = White stands better. A scale needs an explicit selection; material zero is valid.
 - Boards render directly from FEN piece placement, with White at the bottom. Missing FEN move metadata is not inferred. The app does not run an engine or move pieces.
 - Piece paths, square colours and the external coordinate frame match the original stimulus template. Assets are bundled in `docs/assets/pieces/`; the styling change preserves dataset fingerprints and saved progress. Add `&preview=1` to a set URL for a separate local preview that never writes cloud responses.
 - Click squares to highlight them; click again to remove a normal selection. Empty squares can also be selected.
 - A square question with no matches requires **Nincs ilyen** (“None”); an untouched board is not treated as an answer.
 - Conflict clicks are paired sequentially: clicks 1–2 form pair 1, clicks 3–4 pair 2. Colours, numbers and connecting lines indicate pairs. Squares can belong to multiple pairs. Clicking the pending square again cancels that pending click. Undo and each pair's Delete button correct selections. An unfinished pair cannot be submitted.
-- Original Hungarian question wording, including existing typos, is preserved. Generic scale endpoint descriptions are added in the UI; check that they suit the intended rating protocol before collection.
+- Hungarian question wording and order follow `stimuli_q.xlsx`. As of 2026-10-17, the former “sakkszerűtlen” question is second, “veszélyben levő” replaces “védtelen”, the strong-pawn question is removed, and “Ki áll jobban az állás alapján?” follows material advantage. The revised fingerprints start separate progress; earlier responses are retained under their old versions. Position order is unchanged.
 
 ## Try locally
 
