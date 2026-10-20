@@ -6,13 +6,21 @@ Use **EMPTY_DATABASE.cmd** only when all current records are test data. It affec
 
 1. Close every survey tab on your computer and phone.
 2. Double-click `EMPTY_DATABASE.cmd` in the project folder.
-3. Type **CLOSED**. The script creates and checks a full SQL backup in a dated `backups/before-empty-...` folder.
+3. The script checks your Cloudflare login and database access. If authorization fails (for example code 7403), type **LOGIN** when offered, sign in to the account owning this database, and return to the command window. Then type **CLOSED**. The script creates and checks a full SQL backup in a dated `backups/before-empty-...` folder.
 4. When prompted, type **EMPTY chessmst-ratings** exactly. Any other answer cancels deletion.
 5. Wait for **SUCCESS: ... empty (0 / 0)**.
 6. Reopen/reload the updated survey. It refetches the database, detects the reset marker and starts from the fresh server state. Old active browser answers are isolated as local recovery copies and never automatically re-uploaded. An older webpage must reload before it can save.
 7. Optional: visit `reset-local.html` on each browser/device to download and remove those local recovery copies. Localhost and GitHub Pages each have their own storage. Do not import old test backups into the new collection.
 
 This script preserves the database schema and Worker. It does not require the Excel runtime. If backup creation fails or either confirmation is missing, no deletion is attempted. The script has been tested without running deletion against your production data.
+
+To test the connection without any backup, deletion or confirmation prompts, open PowerShell in the project folder and run:
+
+```powershell
+.\EMPTY_DATABASE.cmd --check
+```
+
+Expected result: **CHECK PASSED**. This mode cannot delete data. If the login has expired or the wrong Cloudflare account is active, run the printed login command from `backend`, then repeat the check. If you use a `CLOUDFLARE_API_TOKEN`, it must have access to the database; it can override your browser login. The script displays the underlying Wrangler/npm error instead of hiding it and never automatically retries a failed deletion.
 
 **Existing deployment upgrade:** apply `backend/schema.sql` to your existing D1 database, deploy the updated Worker, then publish the updated `docs/` folder. Schema application adds reset protection and preserves existing responses. Keep the `collection_control` row when emptying; the included reset scripts do this. A direct `DELETE FROM study_state` also advances the marker through a database trigger. The page checks on opening, every 30 seconds, on reconnecting, when returning to the tab and before uploading. A reset between fetch and upload is rejected by the API. If the API is unavailable, local edits stay local until a successful check.
 

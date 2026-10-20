@@ -1,4 +1,4 @@
-import {API_URL,STIMULUS_SET} from './config.js';
+import {API_URL,STIMULUS_SET} from './config.js?v=full-set-20261020';
 import {SETS,selectSet} from './sets.js';
 import {parseFen,recordKey,validAnswer,clickPair,toPairs,emptyState,validateState,completedCount,firstIncomplete,exportRows} from './core.js';
 import {pieceSvg} from './pieces.js?v=reference-art-1';

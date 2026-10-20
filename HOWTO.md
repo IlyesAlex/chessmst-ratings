@@ -4,10 +4,10 @@ A static, Hungarian-language survey for one rater. GitHub Pages serves the webpa
 
 ## Choose B or demo
 
-The current default is **demo**. Change this one line in `docs/config.js` to choose the default:
+The current default is the **full B set (216 positions)**. Change this one line in `docs/config.js` to choose the default:
 
 ```javascript
-export const STIMULUS_SET = 'demo'; // Change to 'B' for the full B set.
+export const STIMULUS_SET = 'B'; // Change to 'demo' for demo positions.
 ```
 
 You can also choose through a URL without editing files or redeploying:

@@ -4,7 +4,7 @@ A static, Hungarian-language survey for a single chess GM rating all positions i
 
 ## Start here
 
-- [Setup, deployment and choosing B or demo](HOWTO.md). The current default is **demo**; change `STIMULUS_SET` in `docs/config.js` or use `?set=B` / `?set=demo` in the survey URL.
+- [Setup, deployment and choosing B or demo](HOWTO.md). The current default is the **full B set (216 positions)**; change `STIMULUS_SET` in `docs/config.js` or use `?set=B` / `?set=demo` in the survey URL.
 - [Backup, SQL/CSV/Excel export and database emptying](EXPORT_INSTRUCTIONS.md). Double-click `EXPORT_DATA.cmd` to fetch fresh data. `EMPTY_DATABASE.cmd` creates a backup and requires typed confirmations before deleting database responses.
 - [Database checks and local-save cleanup (Hungarian)](DATABASE_GUIDE.md).
 - Local preview: run `npm run preview`, then open http://127.0.0.1:8000/.
