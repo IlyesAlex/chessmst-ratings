@@ -15,7 +15,8 @@ CREATE TABLE IF NOT EXISTS response_history (
   response_json TEXT NOT NULL,
   saved_at TEXT NOT NULL
 );
--- Record changed answers, including drafts and edits; cursor-only saves add no history rows.
+-- The Worker supplies _historyChanges; only changed records are expanded in SQL.
+-- A linear fallback supports older Workers or manual SQL writers without that field.
 CREATE TRIGGER IF NOT EXISTS history_insert AFTER INSERT ON study_state BEGIN
   INSERT INTO response_history(study_id,study_version,revision,response_key,response_json,saved_at)
   SELECT NEW.id,NEW.study_version,NEW.revision,j.key,j.value,NEW.updated_at
@@ -24,9 +25,10 @@ END;
 CREATE TRIGGER IF NOT EXISTS history_update AFTER UPDATE ON study_state BEGIN
   INSERT INTO response_history(study_id,study_version,revision,response_key,response_json,saved_at)
   SELECT NEW.id,NEW.study_version,NEW.revision,j.key,j.value,NEW.updated_at
-  FROM json_each(NEW.state_json,'$.records') AS j
-  LEFT JOIN json_each(OLD.state_json,'$.records') AS o ON o.key=j.key
-  WHERE o.value IS NULL OR j.value!=o.value;
+  FROM json_each(CASE WHEN json_extract(NEW.state_json,'$._historyRevision')=NEW.revision AND NEW.revision=OLD.revision+1
+    THEN json_extract(NEW.state_json,'$._historyChanges') ELSE json_extract(NEW.state_json,'$.records') END) AS j
+  WHERE (json_extract(NEW.state_json,'$._historyRevision')=NEW.revision AND NEW.revision=OLD.revision+1)
+     OR json_extract(OLD.state_json,'$.records.' || json_quote(j.key)) IS NOT j.value;
 END;
 CREATE VIEW IF NOT EXISTS responses AS
   SELECT s.id AS study_id,s.study_version,j.key AS response_key,

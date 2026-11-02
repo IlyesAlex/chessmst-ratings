@@ -10,7 +10,11 @@ A static, Hungarian-language survey for a single chess GM rating all positions i
 - Local preview: run `npm run preview`, then open http://127.0.0.1:8000/.
 - Published survey: https://ilyesalex.github.io/chessmst-ratings/.
 
+Cloudflare administration in this folder uses the separate `chessmst-new` login profile. Other project logins are unchanged. The 2026-11-02 account migration preserves existing responses/progress; see [migration details](HOWTO.md#account-migration-on-2026-11-02). Exports now derive their sheets locally from the full SQL backup, avoiding an additional D1 query.
+
 ## Project files
+
+Cloud saves process only changed answers in history, avoiding a comparison of every saved answer against every previous answer. Local saves remain immediate; cloud edits are batched after 1.5 seconds. Unchanged visible pages check the cloud every five minutes; hidden pages do not poll unless they have unsynced edits. Quota errors wait 15 minutes before retrying. See [the D1 optimization upgrade](HOWTO.md#reduce-d1-read-usage) for the required history-trigger migration on existing databases. Dataset versions and saved progress are unchanged by this optimization.
 
 | Location | Purpose |
 | --- | --- |

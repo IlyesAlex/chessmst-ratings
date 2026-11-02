@@ -28,7 +28,7 @@ async function fixture(t,{answers=[],authFailure=false,badBackup=false,resetFail
   const run=(args)=>{
     calls.push(args);
     if(args[0]==='whoami')return 'Logged in with an OAuth Token';
-    if(args[0]==='login')return '';
+    if(args[0]==='auth'&&args[1]==='create')return '';
     if(args.includes('--json')){
       if(authFailure&&!authFailed){authFailed=true;throw new Error('not authorized to access this service [code: 7403]');}
       return JSON.stringify([{results:[{remaining_states:reset?0:2,remaining_history:reset?0:10,generation:reset&&advance?3:2}]}]);
@@ -58,10 +58,10 @@ test('Cancellation, wrong target and incomplete backup all prevent the reset com
 });
 test('Authentication failure offers login before any deletion confirmations',async t=>{
   const f=await fixture(t,{authFailure:true,answers:['LOGIN','']});
-  await emptyDatabase(f);assert.ok(f.calls.some(args=>args[0]==='login'));assert.equal(f.calls.some(args=>args.includes('--file')),false);
+  await emptyDatabase(f);assert.ok(f.calls.some(args=>args[0]==='auth'&&args[1]==='create'&&args[2]==='chessmst-new'));assert.equal(f.calls.some(args=>args.includes('--file')),false);
   const check=await fixture(t,{authFailure:true});
-  await assert.rejects(emptyDatabase({...check,args:['--check']}),/login/);
-  assert.equal(check.calls.some(args=>args[0]==='login'),false);
+  await assert.rejects(emptyDatabase({...check,args:['--check']}),/auth create/);
+  assert.equal(check.calls.some(args=>args[0]==='auth'),false);
 });
 test('A confirmed reset runs only after backup and verifies counts and advanced generation',async t=>{
   const f=await fixture(t,{answers:['CLOSED','EMPTY chessmst-ratings']});await emptyDatabase(f);

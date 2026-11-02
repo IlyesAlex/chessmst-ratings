@@ -3,7 +3,8 @@ import {existsSync} from 'node:fs';
 import {spawnSync} from 'node:child_process';
 
 export const WRANGLER_VERSION='4.150.0';
-export const loginCommand=`npx.cmd --yes --prefer-online wrangler@${WRANGLER_VERSION} login`;
+export const AUTH_PROFILE='chessmst-new';
+export const loginCommand=`npx.cmd --yes --prefer-online wrangler@${WRANGLER_VERSION} auth create ${AUTH_PROFILE}`;
 export function authenticationError(error){
   return /7403|10000|9109|unauthenticated|not authenticated|not logged in|authentication (?:error|failed)|authorization (?:error|failed)|not authorized|invalid (?:access |oauth )?token|token (?:has )?expired|CLOUDFLARE_API_TOKEN/i.test(error.message);
 }

@@ -2,6 +2,7 @@ import studyB from '../docs/data/study_B.json' with {type:'json'};
 import studyDemo from '../docs/data/study_demo.json' with {type:'json'};
 import {validateState} from '../docs/core.js';
 import {selectSet,databaseStudyId} from '../docs/sets.js';
+import {stateWithHistoryChanges,publicState,quotaError} from './history.js';
 const studies={B:studyB,demo:studyDemo};
 
 // Check generation AND revision inside the write itself, including the insert path.
@@ -37,7 +38,7 @@ export default {
       if(request.method==='GET') {
         const row=await env.DB.prepare('SELECT c.generation,s.revision,s.state_json,s.last_mutation_id FROM collection_control AS c LEFT JOIN study_state AS s ON s.id=? WHERE c.id=1').bind(studyId).first();
         if(!row)return reply({error:'Reset protection schema is missing'},503);
-        return reply({generation:row.generation,revision:row.revision??0,state:row.state_json?JSON.parse(row.state_json):null,lastMutationId:row.last_mutation_id??null});
+        return reply({generation:row.generation,revision:row.revision??0,state:publicState(row.state_json),lastMutationId:row.last_mutation_id??null});
       }
       if(request.method==='PUT') {
         // Bounded streaming read: Content-Length may be absent or misleading.
@@ -50,10 +51,10 @@ export default {
         if(!Number.isInteger(body.baseRevision)||body.baseRevision<0||typeof body.mutationId!=='string'||!/^[a-zA-Z0-9-]{1,64}$/.test(body.mutationId)||!validateState(study,body.state))return reply({error:'Invalid study state'},400);
         const control=await env.DB.prepare('SELECT generation FROM collection_control WHERE id=1').first();
         if(!control||control.generation!==body.generation)return reply({error:'Database was reset; fetch the current state',code:'database_reset'},409);
-        const existing=await env.DB.prepare('SELECT revision,last_mutation_id FROM study_state WHERE id = ?').bind(studyId).first();
+        const existing=await env.DB.prepare('SELECT revision,last_mutation_id,state_json FROM study_state WHERE id = ?').bind(studyId).first();
         if(existing?.last_mutation_id===body.mutationId)return reply({revision:existing.revision});
         if((existing?.revision||0)!==body.baseRevision)return reply({error:'Revision conflict'},409);
-        const json=JSON.stringify(body.state);
+        const json=JSON.stringify(stateWithHistoryChanges(body.state,existing?.state_json,body.baseRevision+1));
         const result=await env.DB.prepare(SAVE_SQL)
           .bind(studyId,study.studyVersion,json,body.mutationId,new Date().toISOString(),body.generation,body.baseRevision,studyId,body.baseRevision,body.baseRevision).run();
         if(result.meta.changes===0){
@@ -63,6 +64,9 @@ export default {
         return reply({revision:body.baseRevision+1});
       }
       return reply({error:'Method not allowed'},405);
-    }catch {return reply({error:'Database operation failed'},500);}
+    }catch(error){
+      if(quotaError(error))return Response.json({error:'Daily database quota exhausted; keep local answers and retry later',code:'database_quota'},{status:503,headers:{...headers,'Retry-After':'900'}});
+      return reply({error:'Database operation failed'},500);
+    }
   }
 };

@@ -74,10 +74,13 @@ Before a database is connected, answers save to this browser's local storage. **
 Requires a Cloudflare account and Node.js. The rater does not need an account.
 
 ```powershell
+npx.cmd --yes --prefer-online wrangler@4.150.0 auth create chessmst-new
+npx.cmd --yes --prefer-online wrangler@4.150.0 auth activate chessmst-new .
 cd backend
-npx.cmd --prefer-online wrangler@latest login
 npx.cmd --prefer-online wrangler@latest d1 create chessmst-ratings
 ```
+
+Run the first two commands from the project root. This named login applies only to this folder and its children, including `backend`; other projects retain their own/default logins. `whoami` run from here should show `Active profile: chessmst-new`. Re-authenticate this profile with `auth create chessmst-new`, rather than overwriting the global default using `login`. A `CLOUDFLARE_API_TOKEN` environment variable takes precedence over OAuth profiles. The configured `account_id` prevents accidental deployment to a different account.
 
 Copy the returned database UUID into `database_id` in `backend/wrangler.toml`. Keep the binding name **DB**. Set `ALLOWED_ORIGINS` to your exact GitHub Pages origin:
 
@@ -140,6 +143,33 @@ Check both set URLs. Counts should be **216 / 2,592** for B and **40 / 480** for
 With the API connected, wait for **Adatbázisba mentve** (“Saved to database”). Submit a scale, a square selection and a conflict pair; reload and check restoration. Open the same set on another device and check cloud restoration. Disconnect the network after loading, make an edit, reconnect and use **Szinkronizálás most** (“Sync now”).
 
 For smoke tests, temporarily set `STUDY_ID = "chessmst-smoke-test"` and deploy. Afterwards, return to `chessmst-single-rater` and redeploy. Use a fresh browser profile or clear only this app's test storage before starting real collection. Do not change this namespace during real collection.
+
+## Reduce D1 read usage
+
+The previous `history_update` trigger joined every new answer against every old answer on each save, causing quadratic scan work. The updated Worker computes the changed records in JavaScript; the new SQL triggers expand just that delta. Cursor-only writes have an empty delta and add no answer-history rows. A linear fallback keeps older Workers/manual SQL compatible. Full answers and history remain available, and the questionnaire version is unchanged.
+
+For an existing database, first back up, deploy the updated Worker, then apply the repeatable trigger migration from `backend`:
+
+```powershell
+npx.cmd --yes --prefer-online wrangler@4.150.0 deploy
+npx.cmd --yes --prefer-online wrangler@4.150.0 d1 execute chessmst-ratings --remote --file=./migrate-low-read-history.sql
+```
+
+Publish the matching frontend and reload any old tabs. Running only `schema.sql` on an existing database does not replace its existing triggers; use the migration above. The migration changes trigger definitions, preserving responses, historical rows, revisions and the reset marker. The server stores its small `_historyChanges` field internally in `state_json` and removes it from the public state API; response exports continue to read `records`.
+
+Local edits still save immediately. Cloud edits are debounced for 1.5 seconds. Idle visible tabs poll every five minutes instead of every 30 seconds; clean hidden tabs skip polling. Opening, returning to the tab, reconnecting and edits still check the cloud. The API's atomic revision/reset guards remain in effect. Transient failures back off from 30 seconds to five minutes; detected daily-quota errors return HTTP 503 and retry after 15 minutes. A manual sync can retry immediately. Before changing devices, wait for the database-saved message; if quota is exhausted, keep working in the same browser and download a local JSON backup.
+
+D1 counts rows scanned, including trigger work, rather than just rows returned. Free daily limits reset at 00:00 UTC. A patch cannot restore an already exhausted quota; if Cloudflare blocks the migration, retry it after the quota reset. See [Cloudflare pricing and limits](https://developers.cloudflare.com/d1/platform/pricing/). Use `d1 insights --sort-by=reads --time-period=1d --json` for query analytics; avoid repeatedly running full-history inspection/count queries while investigating a quota issue.
+
+Local checks: `python tests/history_test.py` tests the real SQL migration against preserved data and compares SQLite virtual-machine steps for a one-answer change. This measures SQL work locally, not billable D1 row counts. Check D1 query metadata/analytics after normal collection resumes for actual billed read usage.
+
+### Account migration on 2026-11-02
+
+The replacement D1 database is configured in `backend/wrangler.toml`; administration from this project uses the folder-bound `chessmst-new` profile. The original database remains available in its original account. `chessmst-source` is a separate named profile used explicitly for the source export; it is not the project's active profile.
+
+The full snapshot in `export/2026-11-02T13-47-16.995Z/database-backup.sql` contains all 300 current submitted B responses, 681 historical entries, cursor 300 (position 26, question 1), revision 649 and reset generation 7. It was restored into the empty replacement database, followed by the low-read trigger migration. Every core row and the history sequence were compared exactly with the source snapshot. The active API is `https://chessmst-ratings-api.chessmst-alexitoo96.workers.dev`. The private `backups/before-account-migration-20261102-133311/` directory keeps the previous connection settings and migration verification.
+
+When a browser first opens the new API, `MIGRATE_FROM_API` in `docs/config.js` identifies its previous local save. Valid saves from migration generation 7 can resume against the copied server revision, including pending local edits. The original browser key stays intact. Normal revision conflicts still stop overwrites. Any later database reset advances generation, blocking this local migration path, so old answers cannot refill an intentionally emptied database. These connection changes preserve the stimulus fingerprints.
 
 ## Stopping, resuming and backups
 

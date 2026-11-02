@@ -4,7 +4,7 @@ import path from 'node:path';
 import {fileURLToPath} from 'node:url';
 import {createInterface} from 'node:readline/promises';
 import {confirmationText,confirmed,backupLooksComplete,parseCounts} from './empty-database-core.js';
-import {authenticationError,createWrangler,loginCommand} from './wrangler.js';
+import {authenticationError,createWrangler,loginCommand,AUTH_PROFILE} from './wrangler.js';
 
 const projectRoot=path.resolve(path.dirname(fileURLToPath(import.meta.url)),'..');
 export async function emptyDatabase({root=projectRoot,args=[],run,ask,log=console.log}={}){
@@ -38,7 +38,7 @@ export async function emptyDatabase({root=projectRoot,args=[],run,ask,log=consol
       if(checkOnly)throw new Error(`${error.message}\nLog in from the backend folder: ${loginCommand}\nThen run EMPTY_DATABASE.cmd --check again.`);
       const answer=await question('Type LOGIN to open Cloudflare sign-in and retry, or press Enter to cancel: ');
       if(answer.trim()!=='LOGIN'){log('Cancelled. Nothing deleted.');return;}
-      wrangler(['login']);
+      wrangler(['auth','create',AUTH_PROFILE]);
       before=counts();
     }
     log('Current counts: '+JSON.stringify(before));

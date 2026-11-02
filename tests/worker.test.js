@@ -33,6 +33,21 @@ test('Database API saves and restores exact drafts with optimistic revision cont
   r=await worker.fetch(req('GET'),env);assert.deepEqual((await r.json()).state,state);
   r=await worker.fetch(req('PUT',{...body,baseRevision:1,mutationId:'mutation-2'}),env);assert.equal((await r.json()).revision,2);
 });
+test('Stored history deltas stay server-side and quota errors request a slow retry',async()=>{
+  const env=environment(),state=emptyState(study);
+  const key=`${study.stimuli[0].id}:${study.questions[0].q_id}`;
+  state.records[key]={value:3,submitted:false,updatedAt:'2026-11-02T12:00:00Z'};
+  const body={state,baseRevision:0,mutationId:'delta-1'};
+  assert.equal((await worker.fetch(req('PUT',body),env)).status,200);
+  const stored=JSON.parse([...env.rows.values()][0].state_json);assert.deepEqual(stored._historyChanges,state.records);
+  state.cursor=1;
+  assert.equal((await worker.fetch(req('PUT',{...body,baseRevision:1,mutationId:'delta-2'}),env)).status,200);
+  assert.deepEqual(JSON.parse([...env.rows.values()][0].state_json)._historyChanges,{});
+  assert.deepEqual((await (await worker.fetch(req('GET'),env)).json()).state,state);
+  env.DB.prepare=()=>{throw new Error("D1_ERROR: Your account has exceeded D1's maximum amount of rows read per day");};
+  const response=await worker.fetch(req('GET'),env);assert.equal(response.status,503);
+  assert.equal(response.headers.get('Retry-After'),'900');assert.equal((await response.json()).code,'database_quota');
+});
 test('Reset rejects stale and legacy sessions; a fresh fetched generation can start again',async()=>{
   const env=environment(),body={state:emptyState(study),baseRevision:0,mutationId:'old'};
   assert.equal((await worker.fetch(req('PUT',body),env)).status,200);

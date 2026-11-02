@@ -8,7 +8,8 @@ import {databaseStudyId} from '../docs/sets.js';
 const root=path.resolve(path.dirname(fileURLToPath(import.meta.url)),'..');
 const args=process.argv.slice(2),at=args.indexOf('--set'),set=at<0?'all':args[at+1];
 if(!['all','B','demo'].includes(set))throw new Error('Use --set B, demo or all');
-const config=await fs.readFile(path.join(root,'backend/wrangler.toml'),'utf8');
+const configAt=args.indexOf('--config'),configFile=path.resolve(root,configAt<0?'backend/wrangler.toml':args[configAt+1]);
+const config=await fs.readFile(configFile,'utf8');
 const prefix=config.match(/^STUDY_ID\s*=\s*"([^"]+)"/m)?.[1],db=config.match(/^database_name\s*=\s*"([^"]+)"/m)?.[1];
 const studies=await Promise.all((set==='all'?['B','demo']:[set]).map(async name=>JSON.parse(await fs.readFile(path.join(root,`docs/data/study_${name}.json`),'utf8'))));
 const ids=studies.map(s=>databaseStudyId(prefix,s)),quote=v=>"'"+v.replaceAll("'","''")+"'";
@@ -17,9 +18,18 @@ const stamp=new Date().toISOString().replaceAll(':','-'),outputAt=args.indexOf('
 await fs.writeFile(path.join(out,'query.sql'),sql+'\n');
 // Invoke npm's CLI via Node to preserve the SQL argument exactly on Windows.
 const npx=path.join(path.dirname(process.execPath),'node_modules/npm/bin/npx-cli.js');
-const result=spawnSync(process.execPath,[npx,'--yes','--prefer-online','wrangler@4.150.0','d1','execute',db,'--remote','--command',sql,'--json'],{cwd:path.join(root,'backend'),encoding:'utf8',maxBuffer:16000000});
-if(result.status!==0)throw new Error(result.stderr||result.stdout||String(result.error));
-const snapshots=JSON.parse(result.stdout).flatMap(x=>x.results||[]);
+const backupAt=args.indexOf('--from-backup');
+let snapshots;
+if(backupAt>=0){
+  if(!args[backupAt+1])throw new Error('Provide the SQL backup path after --from-backup.');
+  const {snapshotsFromBackup}=await import('./backup-snapshot.js');
+  snapshots=snapshotsFromBackup(await fs.readFile(path.resolve(args[backupAt+1]),'utf8'),sql);
+}else{
+  const profileAt=args.indexOf('--profile'),profileArgs=profileAt<0?[]:['--profile',args[profileAt+1]];
+  const result=spawnSync(process.execPath,[npx,'--yes','--prefer-online','wrangler@4.150.0','--config',configFile,...profileArgs,'d1','execute',db,'--remote','--command',sql,'--json'],{cwd:path.join(root,'backend'),encoding:'utf8',maxBuffer:16000000});
+  if(result.status!==0)throw new Error(result.stderr||result.stdout||String(result.error));
+  snapshots=JSON.parse(result.stdout).flatMap(x=>x.results||[]);
+}
 await fs.writeFile(path.join(out,'database-snapshot.json'),JSON.stringify(snapshots,null,2));
 const rows=studies.flatMap(study=>{const id=databaseStudyId(prefix,study),snapshot=snapshots.find(x=>x.study_id===id);return resultRows(study,snapshot?JSON.parse(snapshot.state_json):null,id,{submittedOnly:args.includes('--submitted-only')});});
 const csvQuote=v=>'"'+String(v??'').replaceAll('"','""')+'"';
@@ -36,5 +46,5 @@ workbook.recalculate();
 await fs.writeFile(path.join(out,'workbook-inspection.json'),JSON.stringify(await workbook.inspect({kind:'table',range:`Responses!A1:Q${Math.min(rows.length+1,6)}`,tableMaxRows:6,tableMaxCols:17,maxChars:5000})));
 const preview=await workbook.render({sheetName:'Responses',range:`A1:G${Math.min(rows.length+1,9)}`,scale:1});await fs.writeFile(path.join(out,'preview.png'),new Uint8Array(await preview.arrayBuffer()));
 await (await SpreadsheetFile.exportXlsx(workbook)).save(path.join(out,'responses.xlsx'));
-await fs.writeFile(path.join(out,'manifest.json'),JSON.stringify({exportedAt:stamp,timeZone:'Europe/Budapest',sets:studies.map(s=>s.set),rows:rows.length,submitted:rows.filter(r=>r.submitted).length,drafts:rows.filter(r=>!r.submitted).length,elapsedMissing:rows.filter(r=>r.response_time_seconds==='').length,snapshots:snapshots.map(s=>({study_id:s.study_id,revision:s.revision,server_saved_at:s.server_saved_at}))},null,2));
+await fs.writeFile(path.join(out,'manifest.json'),JSON.stringify({exportedAt:stamp,timeZone:'Europe/Budapest',source:backupAt>=0?'database-backup.sql':'remote-query',sets:studies.map(s=>s.set),rows:rows.length,submitted:rows.filter(r=>r.submitted).length,drafts:rows.filter(r=>!r.submitted).length,elapsedMissing:rows.filter(r=>r.response_time_seconds==='').length,snapshots:snapshots.map(s=>({study_id:s.study_id,revision:s.revision,server_saved_at:s.server_saved_at}))},null,2));
 console.log(JSON.stringify({folder:out,rows:rows.length,csv:'responses.csv',xlsx:'responses.xlsx',sql:'responses.sql'},null,2));

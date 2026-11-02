@@ -1,4 +1,6 @@
 name = "chessmst-ratings-api"
+# Project-specific Wrangler auth profile: chessmst-new.
+account_id = "eba3e44ef375d3d66b901acf3297244a"
 main = "worker.js"
 compatibility_date = "2026-10-12"
 
@@ -11,4 +13,4 @@ ALLOWED_ORIGINS = "https://ilyesalex.github.io,http://localhost:8000,http://127.
 [[d1_databases]]
 binding = "DB"
 database_name = "chessmst-ratings"
-database_id = "d70782da-45eb-49fa-b537-eff0f01f7d63"
+database_id = "fa58000e-f5ec-4541-b30e-d22039056dbd"

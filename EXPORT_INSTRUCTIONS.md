@@ -22,7 +22,9 @@ To test the connection without any backup, deletion or confirmation prompts, ope
 
 Expected result: **CHECK PASSED**. This mode cannot delete data. If the login has expired or the wrong Cloudflare account is active, run the printed login command from `backend`, then repeat the check. If you use a `CLOUDFLARE_API_TOKEN`, it must have access to the database; it can override your browser login. The script displays the underlying Wrangler/npm error instead of hiding it and never automatically retries a failed deletion.
 
-**Existing deployment upgrade:** apply `backend/schema.sql` to your existing D1 database, deploy the updated Worker, then publish the updated `docs/` folder. Schema application adds reset protection and preserves existing responses. Keep the `collection_control` row when emptying; the included reset scripts do this. A direct `DELETE FROM study_state` also advances the marker through a database trigger. The page checks on opening, every 30 seconds, on reconnecting, when returning to the tab and before uploading. A reset between fetch and upload is rejected by the API. If the API is unavailable, local edits stay local until a successful check.
+**Existing deployment upgrade:** apply `backend/schema.sql` to your existing D1 database, deploy the updated Worker, then publish the updated `docs/` folder. Schema application adds reset protection and preserves existing responses. Keep the `collection_control` row when emptying; the included reset scripts do this. A direct `DELETE FROM study_state` also advances the marker through a database trigger. The page checks on opening, every five minutes while visible, on reconnecting, when returning to the tab and before uploading (subject to retry backoff). A reset between fetch and upload is rejected by the API. If the API is unavailable, local edits stay local until a successful check.
+
+**Low-read history upgrade (2026-11-02):** existing databases also need `backend/migrate-low-read-history.sql` after deploying the updated Worker. This replaces the expensive history triggers without deleting saved data. See [D1 read optimization](HOWTO.md#reduce-d1-read-usage). Quota exhaustion pauses automatic sync retries for 15 minutes; keep a browser JSON backup and wait for successful database sync before changing devices.
 
 ## First-time setup
 
@@ -31,10 +33,11 @@ Expected result: **CHECK PASSED**. This mode cannot delete data. If the login ha
 3. Open PowerShell in the project folder. Log in to the Cloudflare account that owns your database:
 
 ```powershell
-cd backend
-npx.cmd --prefer-online wrangler@4.150.0 login
-cd ..
+npx.cmd --yes --prefer-online wrangler@4.150.0 auth create chessmst-new
+npx.cmd --yes --prefer-online wrangler@4.150.0 auth activate chessmst-new .
 ```
+
+Run these commands in the project root. They create/re-authenticate a named login and bind it only to this folder, leaving the default login for other projects unchanged. From here, `npx.cmd --yes --prefer-online wrangler@4.150.0 whoami` should show `Active profile: chessmst-new`.
 
 4. Check `backend/wrangler.toml`: it should contain `database_name = "chessmst-ratings"`, your database UUID, and the correct `STUDY_ID` collection namespace. The provided files already have your current settings.
 
@@ -98,4 +101,6 @@ The 2026-10-17 questionnaire revision has new B/demo version IDs. The new overal
 
 **Elapsed time was not collected before this update.** Older responses have a blank `response_time_seconds` value. Do not interpret blank as zero or calculate reaction time from gaps between timestamps. Publish the updated frontend to start collecting durations; existing records remain compatible.
 
-The full database backup and the response snapshot are read sequentially. Pause collection until DONE to keep both consistent. The CSV, XLSX and preprocessed SQL all use the same single response snapshot.
+The full SQL backup is downloaded once. The script restores it into a temporary in-memory SQLite database and derives CSV, XLSX and preprocessed SQL locally from that exact snapshot. Processing needs no second D1 query, and the database backup and sheets reflect the same snapshot. Node.js 22 or newer includes the required SQLite module; no additional Python/database package is needed. Pause collection until DONE to establish a clear export cutoff.
+
+For a deliberate export from another saved connection/account, use `node tools/export-all.mjs --config PATH-TO-WRANGLER.toml --profile PROFILE-NAME`. The override applies only to that export and does not change the project's active login. To regenerate sheets from an existing SQL backup without contacting D1, use `node tools/export-results.mjs --from-backup PATH-TO-BACKUP.sql --output-dir PATH-TO-OUTPUT`.

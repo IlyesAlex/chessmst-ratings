@@ -1,15 +1,18 @@
-import {API_URL,STIMULUS_SET} from './config.js?v=full-set-20261020';
+import {API_URL,STIMULUS_SET,MIGRATE_FROM_API,MIGRATION_GENERATION} from './config.js?v=account-20261102';
 import {SETS,selectSet} from './sets.js';
 import {parseFen,recordKey,validAnswer,clickPair,toPairs,emptyState,validateState,completedCount,firstIncomplete,exportRows} from './core.js';
 import {pieceSvg} from './pieces.js?v=reference-art-1';
 import {elapsed} from './timing.js';
 import {remoteAction} from './sync-state.js';
 import {scaleLabels} from './scales.js';
+import {SYNC_INTERVAL_MS,SAVE_DEBOUNCE_MS,retryDelay,shouldSync} from './sync-policy.js';
+import {migrationCandidate} from './migrate-local.js';
 const $ = id => document.getElementById(id);
 const colors = ['#b64a27','#315cbb','#873fb0','#197663','#b07110','#b43875'];
 const names = {p:'gyalog',n:'huszár',b:'futó',r:'bástya',q:'vezér',k:'király'};
 let study, box, key, selectedSet, syncing=false, conflict=false, timer, storageFailed=false, ready=false;
 let lock;
+let syncFailures=0,retryAt=0,quotaWait=false,syncProblem='';
 let timedKey=null,timingStarted=null;
 function startTiming(){const c=current();timedKey=c.key;timingStarted=c.key&&!document.hidden?performance.now():null;}
 function checkpointTiming(){
@@ -27,13 +30,13 @@ function persist() {
   catch { storageFailed=true; error('A böngésző nem tudja menteni az adatokat. Tölts le JSON biztonsági másolatot a „Mentés és adatok” menüben.'); return false; }
 }
 function status(message) {
-  $('save-status').textContent=message || (storageFailed?'Helyi mentés sikertelen.': conflict?'Eltérő szervermentés. Nyisd meg a „Mentés és adatok” menüt.':!api?'Ezen a böngészőn mentve. Adatbázis nincs csatlakoztatva.':box.dirty?'Ezen a böngészőn mentve. Adatbázis-szinkronizálásra vár.':'Adatbázisba mentve.');
+  $('save-status').textContent=message || (storageFailed?'Helyi mentés sikertelen.': conflict?'Eltérő szervermentés. Nyisd meg a „Mentés és adatok” menüt.':syncProblem||(!api?'Ezen a böngészőn mentve. Adatbázis nincs csatlakoztatva.':box.dirty?'Ezen a böngészőn mentve. Adatbázis-szinkronizálásra vár.':'Adatbázisba mentve.'));
   $('sync-detail').textContent=$('save-status').textContent;
   $('conflict-tools').hidden=!conflict;
 }
 function changed() {
   box.edits++; box.dirty=true; box.state.updatedAt=new Date().toISOString();
-  const ok=persist(); status(); clearTimeout(timer); timer=setTimeout(sync,650); return ok;
+  const ok=persist(); status(); clearTimeout(timer); timer=setTimeout(sync,Math.max(SAVE_DEBOUNCE_MS,retryAt-Date.now())); return ok;
 }
 function current() {
   const n=study.questions.length,i=box.state.cursor;
@@ -133,7 +136,10 @@ async function request(method,body) {
     if(detail.code==='database_reset'){const e=new Error('database reset');e.code=detail.code;throw e;}
     conflict=true;status();throw new Error('conflict');
   }
-  if(!response.ok)throw new Error(`HTTP ${response.status}`);
+  if(!response.ok){
+    const detail=await response.json().catch(()=>({}));
+    const e=new Error(`HTTP ${response.status}`);e.code=detail.code;throw e;
+  }
   return response.json();
 }
 function checkRemote(remote) {
@@ -158,8 +164,15 @@ function applyRemote(remote) {
   persist();if(ready&&(action==='reset'||action==='load'))render();
   return true;
 }
-async function sync() {
+function deferSync(e){
+  syncFailures++;quotaWait=e.code==='database_quota';retryAt=Date.now()+retryDelay(syncFailures,quotaWait);
+  syncProblem=quotaWait?'Ezen a böngészőn mentve. Az adatbázis napi kerete elfogyott; újrapróbálás 15 perc múlva. Tölts le JSON biztonsági másolatot, és eszközváltás előtt várd meg a szinkronizálást.':`Ezen a böngészőn mentve. Az adatbázis nem elérhető (${e.message}). Újrapróbálás automatikusan.`;
+  status();
+}
+function syncSucceeded(){syncFailures=0;retryAt=0;quotaWait=false;syncProblem='';status();}
+async function sync({force=false}={}) {
   if(!api||syncing||!ready)return;
+  if(!shouldSync({hidden:document.hidden,dirty:box.dirty,force,now:Date.now(),retryAt}))return;
   syncing=true;status('Szinkronizálás…');
   try {
     const remote=await request('GET');if(!applyRemote(remote))return;
@@ -171,14 +184,14 @@ async function sync() {
       if(box.edits===edits)box.dirty=false;
       persist();
     }
-    status();
+    syncSucceeded();
   } catch(e) {
     if(e.code==='database_reset'){
-      try{applyRemote(await request('GET'));status();}
-      catch(reloadError){status(`Az adatbázis újratöltése szükséges (${reloadError.message}). Újrapróbálás automatikusan.`);}
-    }else if(!conflict)status(`Ezen a böngészőn mentve. Az adatbázis nem elérhető (${e.message}). Újrapróbálás automatikusan.`);
+      try{applyRemote(await request('GET'));syncSucceeded();}
+      catch(reloadError){deferSync(reloadError);}
+    }else if(!conflict)deferSync(e);
   }
-  finally{syncing=false;if(box.dirty&&!conflict){clearTimeout(timer);timer=setTimeout(sync,30000);}}
+  finally{syncing=false;if(box.dirty&&!conflict){clearTimeout(timer);timer=setTimeout(sync,Math.max(SAVE_DEBOUNCE_MS,retryAt-Date.now()));}}
 }
 function download(filename,text,type) {
   const url=URL.createObjectURL(new Blob([text],{type}));const a=document.createElement('a');a.href=url;a.download=filename;a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);
@@ -207,8 +220,16 @@ async function start() {
   }else box={state:emptyState(study),revision:0,generation:null,dirty:false,edits:0,lastMutationId:null};
   if(api) {
     try {
-      applyRemote(await request('GET'));
-    }catch(e){if(!conflict)error(`Az adatbázis most nem elérhető: ${e.message}. Ezen a böngészőn folytathatod; új eszközön várj a szinkronizálásra.`);}
+      const remote=await request('GET');
+      if(!saved&&MIGRATE_FROM_API&&MIGRATE_FROM_API!==api){
+        try{
+          const oldKey=`chessmst:${study.studyVersion}:${MIGRATE_FROM_API.replace(/\/$/,'')}`;
+          const candidate=migrationCandidate(study,localStorage.getItem(oldKey),remote,MIGRATION_GENERATION);
+          if(candidate)box=candidate;
+        }catch{/* Preserve the old key and fall back to the copied cloud state. */}
+      }
+      applyRemote(remote);
+    }catch(e){if(!conflict){deferSync(e);error(`Az adatbázis most nem elérhető: ${e.message}. Ezen a böngészőn folytathatod; új eszközön várj a szinkronizálásra.`);}}
   }
   ready=true;persist();render();status();startTiming();
   $('next').onclick=()=>{
@@ -226,7 +247,7 @@ async function start() {
   $('settings').onclick=()=>{status();$('data-dialog').showModal();};
   $('close-dialog').onclick=()=>$('data-dialog').close();
   $('storage-description').textContent=api?'A válaszok ezen a böngészőn és a csatlakoztatott adatbázisban kerülnek mentésre.':'A válaszok ezen a böngészőn kerülnek mentésre. Eszközváltáshoz használj JSON biztonsági másolatot, vagy csatlakoztass adatbázist.';
-  $('sync').disabled=!api;$('sync').onclick=sync;
+  $('sync').disabled=!api;$('sync').onclick=()=>sync({force:true});
   $('download-json').onclick=backup;
   $('download-csv').onclick=()=>{
     const rows=exportRows(study,box.state),fields=Object.keys(rows[0]);
@@ -247,16 +268,16 @@ async function start() {
   $('load-cloud').onclick=async()=>{
     if(syncing)return;
     if(!confirm('Betöltöd a szerver válaszait? A helyi válaszokról automatikusan biztonsági másolat készül.'))return;
-    try {backup();const remote=await request('GET');checkRemote(remote);remoteAction({...box,dirty:false},remote);box.state=remote.state||emptyState(study);box.revision=remote.revision;box.generation=remote.generation;box.dirty=false;box.lastMutationId=null;conflict=false;timedKey=null;persist();render();status();error('');}
+    try {backup();const remote=await request('GET');checkRemote(remote);remoteAction({...box,dirty:false},remote);box.state=remote.state||emptyState(study);box.revision=remote.revision;box.generation=remote.generation;box.dirty=false;box.lastMutationId=null;conflict=false;timedKey=null;persist();render();syncSucceeded();error('');}
     catch(e){error(`Betöltés sikertelen: ${e.message}`);}
   };
-  addEventListener('online',sync);document.addEventListener('visibilitychange',()=>{
+  addEventListener('online',()=>sync({force:!quotaWait}));document.addEventListener('visibilitychange',()=>{
     if(document.hidden){
       checkpointTiming();timingStarted=null;if(record()&&!record().submitted)changed();
     }
     else{startTiming();sync();}
   });
   addEventListener('beforeunload',e=>{if(box.dirty&&api||storageFailed){e.preventDefault();e.returnValue='';}});
-  setInterval(sync,30000);sync();
+  setInterval(sync,SYNC_INTERVAL_MS);if(box.dirty)sync();
 }
 start().catch(e=>{error(e.message);$('save-status').textContent='Az értékelés nem indult el.';});
