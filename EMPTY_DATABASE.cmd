@@ -8,6 +8,7 @@ if errorlevel 1 (
   exit /b 1
 )
 echo ChessMST database administration
+echo Required Cloudflare sign-in: alexitoo96@gmail.com
 echo.
 node "%~dp0tools\empty-database.mjs" %*
 set "cleanupExit=%errorlevel%"

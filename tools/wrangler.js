@@ -12,7 +12,7 @@ export function createWrangler({cwd,node=process.execPath,env=process.env,spawn=
   // Invoke npm through Node: Windows .cmd launchers cannot be spawned directly.
   const npx=path.join(path.dirname(node),'node_modules/npm/bin/npx-cli.js');
   return (args,capture=false)=>{
-    if(!exists(npx))throw new Error('The npm launcher was not found beside Node.js. Repair/reinstall Node.js LTS with npm included, then reopen EMPTY_DATABASE.cmd.');
+    if(!exists(npx))throw new Error('The npm launcher was not found beside Node.js. Repair/reinstall Node.js LTS with npm included, then reopen the project launcher.');
     const result=spawn(node,[npx,'--yes','--prefer-online',`wrangler@${WRANGLER_VERSION}`,...args],{
       cwd,encoding:'utf8',env:{...env},maxBuffer:16*1024*1024,
       // Keep Wrangler from consuming confirmations belonging to the parent script.

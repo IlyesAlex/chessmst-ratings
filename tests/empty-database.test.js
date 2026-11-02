@@ -7,6 +7,7 @@ import path from 'node:path';
 import os from 'node:os';
 import {emptyDatabase} from '../tools/empty-database.mjs';
 import {authenticationError,createWrangler} from '../tools/wrangler.js';
+import {PROJECT_ACCOUNT} from '../tools/project-account.js';
 test('Database cleanup requires the exact named target and complete backup',()=>{
   assert.equal(confirmed('EMPTY chessmst-ratings','chessmst-ratings'),true);
   for(const input of ['','yes','EMPTY','EMPTY another-database'])assert.equal(confirmed(input,'chessmst-ratings'),false);
@@ -19,21 +20,22 @@ test('Cleanup verifies both response state and history counts',()=>{
   assert.throws(()=>parseCounts('[{"results":[{"remaining_states":0,"remaining_history":0}]}]'),/reset marker/);
 });
 
-async function fixture(t,{answers=[],authFailure=false,badBackup=false,resetFailure=false,advance=true}={}){
+async function fixture(t,{answers=[],authFailure=false,badBackup=false,resetFailure=false,advance=true,switchedAfterBackup=false}={}){
   const temp=path.resolve(os.tmpdir()),root=await fs.mkdtemp(path.join(temp,'chessmst-empty-test-'));
   t.after(async()=>{assert.equal(path.dirname(root),temp);await fs.rm(root,{recursive:true,force:true});});
   await fs.mkdir(path.join(root,'backend'));
-  await fs.writeFile(path.join(root,'backend/wrangler.toml'),'database_name = "chessmst-ratings"\ndatabase_id = "test-database"\n');
-  const calls=[],messages=[];let reset=false,authFailed=false;
+  await fs.writeFile(path.join(root,'backend/wrangler.toml'),`account_id = "${PROJECT_ACCOUNT.accountId}"\ndatabase_name = "${PROJECT_ACCOUNT.databaseName}"\ndatabase_id = "${PROJECT_ACCOUNT.databaseId}"\n`);
+  const calls=[],messages=[];let reset=false,authFailed=false,backedUp=false;
   const run=(args)=>{
     calls.push(args);
-    if(args[0]==='whoami')return 'Logged in with an OAuth Token';
-    if(args[0]==='auth'&&args[1]==='create')return '';
+    if(args[0]==='whoami')return JSON.stringify({loggedIn:true,email:switchedAfterBackup&&backedUp?'another@example.com':PROJECT_ACCOUNT.email,accounts:[{id:PROJECT_ACCOUNT.accountId}]});
+    if(args[0]==='auth')return '';
     if(args.includes('--json')){
       if(authFailure&&!authFailed){authFailed=true;throw new Error('not authorized to access this service [code: 7403]');}
       return JSON.stringify([{results:[{remaining_states:reset?0:2,remaining_history:reset?0:10,generation:reset&&advance?3:2}]}]);
     }
     if(args[1]==='export'){
+      backedUp=true;
       writeFileSync(args[args.indexOf('--output')+1],badBackup?'incomplete':'CREATE TABLE study_state; CREATE TABLE response_history; CREATE TABLE collection_control;');return '';
     }
     if(args.includes('--file')){if(resetFailure)throw new Error('Network failed after reset request');reset=true;return '';}
@@ -65,11 +67,17 @@ test('Authentication failure offers login before any deletion confirmations',asy
 });
 test('A confirmed reset runs only after backup and verifies counts and advanced generation',async t=>{
   const f=await fixture(t,{answers:['CLOSED','EMPTY chessmst-ratings']});await emptyDatabase(f);
-  assert.deepEqual(f.calls.map(args=>args[0]==='whoami'?'whoami':args.includes('--json')?'counts':args[1]),['whoami','counts','export','execute','counts']);
+  assert.deepEqual(f.calls.map(args=>args[0]==='whoami'?'whoami':args.includes('--json')?'counts':args[1]),['whoami','counts','export','whoami','execute','counts']);
   assert.ok(f.messages.some(m=>m.startsWith('SUCCESS:')));
   const stale=await fixture(t,{answers:['CLOSED','EMPTY chessmst-ratings'],advance:false});
   await assert.rejects(emptyDatabase(stale),/marker did not advance/);
   assert.equal(stale.messages.some(m=>m.startsWith('SUCCESS:')),false);
+});
+test('Changing login while the backup/confirmation is in progress blocks deletion',async t=>{
+  const f=await fixture(t,{answers:['CLOSED','EMPTY chessmst-ratings'],switchedAfterBackup:true});
+  await assert.rejects(emptyDatabase(f),/Wrong or unverifiable/);
+  assert.equal(f.calls.some(args=>args.includes('--file')),false);
+  assert.ok(f.messages.some(message=>message.includes('Stopped before deletion')));
 });
 test('A failed reset is never automatically retried and reports an unverified outcome',async t=>{
   const f=await fixture(t,{answers:['CLOSED','EMPTY chessmst-ratings'],resetFailure:true});

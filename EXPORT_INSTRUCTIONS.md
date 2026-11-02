@@ -1,13 +1,26 @@
 # Export: easiest steps on this computer
 
+## Sign-in and database checks in both launchers
+
+`EXPORT_DATA.cmd` and `EMPTY_DATABASE.cmd` require **alexitoo96@gmail.com**, the migrated account ID and the migrated database UUID. Each checks Wrangler's structured `whoami --json` output before any D1 operation. A valid login to a different account is rejected. If sign-in is missing/wrong, normal mode offers **LOGIN** to re-authorize the project profile `chessmst-new`, activates it only for this project folder and verifies the email/account again. Other project/default logins are unchanged.
+
+Both support a safe check from PowerShell in the project root:
+
+```powershell
+.\EXPORT_DATA.cmd --check
+.\EMPTY_DATABASE.cmd --check
+```
+
+Check mode never opens sign-in, creates exports/backups or deletes data. It prints **CHECK PASSED** only after the exact identity and database access are verified. Export checks read only the single reset-marker row; emptying checks also count the records so you can see the target's current contents.
+
 ## Double-click database emptying
 
 Use **EMPTY_DATABASE.cmd** only when all current records are test data. It affects B, demo and older versions.
 
 1. Close every survey tab on your computer and phone.
 2. Double-click `EMPTY_DATABASE.cmd` in the project folder.
-3. The script checks your Cloudflare login and database access. If authorization fails (for example code 7403), type **LOGIN** when offered, sign in to the account owning this database, and return to the command window. Then type **CLOSED**. The script creates and checks a full SQL backup in a dated `backups/before-empty-...` folder.
-4. When prompted, type **EMPTY chessmst-ratings** exactly. Any other answer cancels deletion.
+3. The script verifies **alexitoo96@gmail.com** and database access. If sign-in is missing/wrong or authorization fails, type **LOGIN** when offered and sign in as that email. Then type **CLOSED**. The script creates and checks a full SQL backup in a dated `backups/before-empty-...` folder.
+4. When prompted, type **EMPTY chessmst-ratings** exactly. Any other answer cancels deletion. Identity and database target are checked again immediately before deletion, so switching accounts during the confirmation blocks the reset.
 5. Wait for **SUCCESS: ... empty (0 / 0)**.
 6. Reopen/reload the updated survey. It refetches the database, detects the reset marker and starts from the fresh server state. Old active browser answers are isolated as local recovery copies and never automatically re-uploaded. An older webpage must reload before it can save.
 7. Optional: visit `reset-local.html` on each browser/device to download and remove those local recovery copies. Localhost and GitHub Pages each have their own storage. Do not import old test backups into the new collection.
@@ -20,7 +33,7 @@ To test the connection without any backup, deletion or confirmation prompts, ope
 .\EMPTY_DATABASE.cmd --check
 ```
 
-Expected result: **CHECK PASSED**. This mode cannot delete data. If the login has expired or the wrong Cloudflare account is active, run the printed login command from `backend`, then repeat the check. If you use a `CLOUDFLARE_API_TOKEN`, it must have access to the database; it can override your browser login. The script displays the underlying Wrangler/npm error instead of hiding it and never automatically retries a failed deletion.
+Expected result: **CHECK PASSED**. This mode cannot delete data. If the login has expired or the wrong Cloudflare account is active, run the printed recovery commands, then repeat the check. A `CLOUDFLARE_API_TOKEN` can override browser sign-in: if Wrangler cannot confirm the required email, the checker stops. The script displays the underlying error and never automatically retries a failed deletion.
 
 **Existing deployment upgrade:** apply `backend/schema.sql` to your existing D1 database, deploy the updated Worker, then publish the updated `docs/` folder. Schema application adds reset protection and preserves existing responses. Keep the `collection_control` row when emptying; the included reset scripts do this. A direct `DELETE FROM study_state` also advances the marker through a database trigger. The page checks on opening, every five minutes while visible, on reconnecting, when returning to the tab and before uploading (subject to retry backoff). A reset between fetch and upload is rejected by the API. If the API is unavailable, local edits stay local until a successful check.
 
@@ -66,6 +79,7 @@ The command creates these files:
 | `query.sql` | The exact read-only query used to retrieve the current data. |
 | `database-snapshot.json` | The database rows that generated all three response files. |
 | `manifest.json` | Export time, dataset versions/revisions and response counts. |
+| `account-check.json` | Verified sign-in email, Cloudflare account and migrated database UUID for this export. |
 
 Each run uses a new folder, so previous exports remain. The script does not delete or reset responses. The `export/` folder is ignored by Git; do not upload participant data to the public GitHub repository.
 
@@ -103,4 +117,4 @@ The 2026-10-17 questionnaire revision has new B/demo version IDs. The new overal
 
 The full SQL backup is downloaded once. The script restores it into a temporary in-memory SQLite database and derives CSV, XLSX and preprocessed SQL locally from that exact snapshot. Processing needs no second D1 query, and the database backup and sheets reflect the same snapshot. Node.js 22 or newer includes the required SQLite module; no additional Python/database package is needed. Pause collection until DONE to establish a clear export cutoff.
 
-For a deliberate export from another saved connection/account, use `node tools/export-all.mjs --config PATH-TO-WRANGLER.toml --profile PROFILE-NAME`. The override applies only to that export and does not change the project's active login. To regenerate sheets from an existing SQL backup without contacting D1, use `node tools/export-results.mjs --from-backup PATH-TO-BACKUP.sql --output-dir PATH-TO-OUTPUT`.
+The normal launchers are locked to `backend/wrangler.toml` and the migrated account/database. They reject `--config` and `--profile` overrides so an old connection cannot be selected accidentally. To regenerate sheets from an existing SQL backup without contacting D1 or checking sign-in, use `node tools/export-results.mjs --from-backup PATH-TO-BACKUP.sql --output-dir PATH-TO-OUTPUT`.

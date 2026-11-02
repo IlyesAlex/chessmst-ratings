@@ -4,7 +4,8 @@ import path from 'node:path';
 import {fileURLToPath} from 'node:url';
 import {createInterface} from 'node:readline/promises';
 import {confirmationText,confirmed,backupLooksComplete,parseCounts} from './empty-database-core.js';
-import {authenticationError,createWrangler,loginCommand,AUTH_PROFILE} from './wrangler.js';
+import {authenticationError,createWrangler,loginCommand} from './wrangler.js';
+import {checkProjectAccess,verifyIdentity,verifyProjectConfig,PROJECT_ACCOUNT} from './project-account.js';
 
 const projectRoot=path.resolve(path.dirname(fileURLToPath(import.meta.url)),'..');
 export async function emptyDatabase({root=projectRoot,args=[],run,ask,log=console.log}={}){
@@ -24,23 +25,9 @@ export async function emptyDatabase({root=projectRoot,args=[],run,ask,log=consol
   const question=ask||((prompt)=>{input??=createInterface({input:process.stdin,output:process.stdout});return input.question(prompt);});
   let deletionAttempted=false;
   try{
-    // Refresh an existing OAuth login before D1 access; whoami never opens login.
-    log('Checking Cloudflare login...');
-    let before;
-    try{
-      const identity=wrangler(['whoami'],true);
-      if(/not (?:logged in|authenticated)/i.test(identity))throw new Error('Not authenticated with Cloudflare.');
-      before=counts();
-    }catch(error){
-      if(!authenticationError(error))throw error;
-      log('Cloudflare login/account access failed. No deletion has been attempted.');
-      log('Use the Cloudflare account that owns this database. A configured API token can override your browser login.');
-      if(checkOnly)throw new Error(`${error.message}\nLog in from the backend folder: ${loginCommand}\nThen run EMPTY_DATABASE.cmd --check again.`);
-      const answer=await question('Type LOGIN to open Cloudflare sign-in and retry, or press Enter to cancel: ');
-      if(answer.trim()!=='LOGIN'){log('Cancelled. Nothing deleted.');return;}
-      wrangler(['auth','create',AUTH_PROFILE]);
-      before=counts();
-    }
+    const access=await checkProjectAccess({config,root,run:wrangler,ask:question,log,checkOnly,probe:counts});
+    if(!access)return;
+    const before=access.result;
     log('Current counts: '+JSON.stringify(before));
     if(checkOnly){log('CHECK PASSED: Cloudflare login, database access and reset marker are working. Nothing deleted.');return;}
     const ready=await question('Have you closed ALL survey tabs? Type CLOSED to continue, or press Enter to cancel: ');
@@ -51,10 +38,13 @@ export async function emptyDatabase({root=projectRoot,args=[],run,ask,log=consol
     log('Creating the full SQL backup before deletion...');
     wrangler(['d1','export',database,'--remote','--output',backup]);
     if(!backupLooksComplete(await fs.readFile(backup,'utf8')))throw new Error('Backup validation failed. Nothing has been deleted.');
-    await fs.writeFile(path.join(folder,'before.json'),JSON.stringify({database,uuid,counts:before},null,2));
+    await fs.writeFile(path.join(folder,'before.json'),JSON.stringify({database,uuid,identity:access.identity,counts:before},null,2));
     log(`Backup verified and saved: ${backup}`);
     const answer=await question(`To delete all test responses, type exactly ${confirmationText(database)}: `);
     if(!confirmed(answer,database)){log('Cancelled. Backup retained; nothing deleted.');return;}
+    log('Rechecking sign-in and database target before deletion...');
+    verifyProjectConfig(await fs.readFile(path.join(backend,'wrangler.toml'),'utf8'));
+    verifyIdentity(wrangler(['whoami','--json'],true));
     deletionAttempted=true;
     wrangler(['d1','execute',database,'--remote','--file',path.join(backend,'reset-all-test-data.sql'),'--yes']);
     const after=counts();
@@ -76,7 +66,7 @@ export async function emptyDatabase({root=projectRoot,args=[],run,ask,log=consol
 if(process.argv[1]&&path.resolve(process.argv[1])===fileURLToPath(import.meta.url)){
   emptyDatabase({args:process.argv.slice(2)}).catch(error=>{
     console.error('\nERROR: '+error.message);
-    if(authenticationError(error))console.error(`\nFrom the backend folder, run: ${loginCommand}\nChoose the account that owns chessmst-ratings, then run EMPTY_DATABASE.cmd --check.`);
+    if(error.code==='account_sign_in'||authenticationError(error))console.error(`\nFrom the project folder, run: ${loginCommand}\nSign in as ${PROJECT_ACCOUNT.email}, then run EMPTY_DATABASE.cmd --check.`);
     process.exitCode=1;
   });
 }

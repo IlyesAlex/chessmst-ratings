@@ -1,10 +1,11 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import {fileURLToPath} from 'node:url';
-import {spawnSync} from 'node:child_process';
 import {Workbook,SpreadsheetFile} from '@oai/artifact-tool';
 import {FIELDS,resultRows,resultsSql} from './results-core.js';
 import {databaseStudyId} from '../docs/sets.js';
+import {createWrangler} from './wrangler.js';
+import {checkProjectAccess} from './project-account.js';
 const root=path.resolve(path.dirname(fileURLToPath(import.meta.url)),'..');
 const args=process.argv.slice(2),at=args.indexOf('--set'),set=at<0?'all':args[at+1];
 if(!['all','B','demo'].includes(set))throw new Error('Use --set B, demo or all');
@@ -16,8 +17,6 @@ const ids=studies.map(s=>databaseStudyId(prefix,s)),quote=v=>"'"+v.replaceAll("'
 const sql=`SELECT id AS study_id, revision, state_json, updated_at AS server_saved_at FROM study_state WHERE id IN (${ids.map(quote).join(',')}) ORDER BY id;`;
 const stamp=new Date().toISOString().replaceAll(':','-'),outputAt=args.indexOf('--output-dir'),out=outputAt<0?path.join(root,'export',stamp):path.resolve(args[outputAt+1]);await fs.mkdir(out,{recursive:true});
 await fs.writeFile(path.join(out,'query.sql'),sql+'\n');
-// Invoke npm's CLI via Node to preserve the SQL argument exactly on Windows.
-const npx=path.join(path.dirname(process.execPath),'node_modules/npm/bin/npx-cli.js');
 const backupAt=args.indexOf('--from-backup');
 let snapshots;
 if(backupAt>=0){
@@ -25,10 +24,11 @@ if(backupAt>=0){
   const {snapshotsFromBackup}=await import('./backup-snapshot.js');
   snapshots=snapshotsFromBackup(await fs.readFile(path.resolve(args[backupAt+1]),'utf8'),sql);
 }else{
-  const profileAt=args.indexOf('--profile'),profileArgs=profileAt<0?[]:['--profile',args[profileAt+1]];
-  const result=spawnSync(process.execPath,[npx,'--yes','--prefer-online','wrangler@4.150.0','--config',configFile,...profileArgs,'d1','execute',db,'--remote','--command',sql,'--json'],{cwd:path.join(root,'backend'),encoding:'utf8',maxBuffer:16000000});
-  if(result.status!==0)throw new Error(result.stderr||result.stdout||String(result.error));
-  snapshots=JSON.parse(result.stdout).flatMap(x=>x.results||[]);
+  if(args.includes('--profile'))throw new Error('Remote exports are restricted to the migrated project account. Use --from-backup for offline processing of older backups.');
+  const wrangler=createWrangler({cwd:path.join(root,'backend')});
+  const access=await checkProjectAccess({config,root,run:wrangler,checkOnly:true,
+    probe:()=>JSON.parse(wrangler(['d1','execute',db,'--remote','--command',sql,'--json'],true)).flatMap(x=>x.results||[])});
+  snapshots=access.result;
 }
 await fs.writeFile(path.join(out,'database-snapshot.json'),JSON.stringify(snapshots,null,2));
 const rows=studies.flatMap(study=>{const id=databaseStudyId(prefix,study),snapshot=snapshots.find(x=>x.study_id===id);return resultRows(study,snapshot?JSON.parse(snapshot.state_json):null,id,{submittedOnly:args.includes('--submitted-only')});});
